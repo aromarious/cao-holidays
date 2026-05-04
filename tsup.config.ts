@@ -1,0 +1,16 @@
+import { defineConfig } from 'tsup';
+
+export default defineConfig({
+  entry: {
+    index: 'src/index.ts',
+    'bin/cao-holidays': 'bin/cao-holidays.ts',
+  },
+  format: ['esm'],
+  target: 'node22',
+  dts: true,
+  sourcemap: true,
+  clean: true,
+  splitting: false,
+  shims: false,
+  outDir: 'dist',
+});
