@@ -2,6 +2,10 @@
 
 内閣府公式の祝日CSVをfetch・パースして返す薄いNode.jsライブラリ + CLI。
 
+> **このドキュメントの位置付け**: `packages/js/` に格納されている JS / TypeScript パッケージ (npm: `cao-holidays`) の仕様書。monorepo 全体の構造（言語横断の `fixtures/`、各 `packages/<lang>/` の配置）は [`monorepo-structure.md`](./monorepo-structure.md) を、各言語のリリース手順は [`release-runbook.md`](./release-runbook.md) を参照。
+>
+> 他言語（Python / Go / Ruby / Rust / PHP）の実装は本仕様の API / CLI 振る舞い・出力フォーマットと一致させ、`fixtures/` のスナップショットでバイト一致を担保する。
+
 ---
 
 ## 設計思想
@@ -23,7 +27,7 @@
 
 - **公式サポート**: Node.js LTS（現行 22 / 24）
 - **未検証（将来対応候補）**: Bun / Deno / Cloudflare Workers / ブラウザ
-  - ライブラリ本体（`src/`）は Node 固有 API（`fs`, `path`, `process` 等）を使わない方針で書く（CLIエントリ `bin/` は当然 Node 固有を使う）
+  - ライブラリ本体（`packages/js/src/`）は Node 固有 API（`fs`, `path`, `process` 等）を使わない方針で書く（CLIエントリ `packages/js/bin/` は当然 Node 固有を使う）
   - 上記方針が守られていれば各ランタイムでも動作する見込みはあるが、現時点で検証していない。`TextDecoder('shift_jis')` の対応状況などはランタイムごとに確認が必要
   - ブラウザは内閣府サーバが CORS ヘッダを返さないため、プロキシ経由 or `fetch` DI 前提
 
@@ -47,7 +51,7 @@ https://data.e-gov.go.jp/data/api/action/package_show?id=cao_20190522_0002
 
 > **注**: CKAN 側のメタデータは 2022-08-17 から更新が止まっている（2026-05 時点で確認、`resource.name` のテキストは「〜令和2年（2020年）」のまま）。`resource.url` の値は現時点では維持されているが、内閣府がファイル名を変更した場合に CKAN 側が追従するかは保証されない。
 >
-> **CKAN 障害時の方針**: CKAN 取得失敗時は `https://www8.cao.go.jp/chosei/shukujitsu/syukujitsu.csv` を直叩きするフォールバックを持つ。実装は patch リリースで追加する（初版では CKAN のみ）。
+> **CKAN 障害時の方針**: CKAN 取得失敗時は `https://www8.cao.go.jp/chosei/shukujitsu/syukujitsu.csv` を直叩きするフォールバックを持つ予定（2026-05 時点では未実装、CKAN のみ）。週次 healthcheck workflow は CKAN / 直URL の両方を実取得して issue 化するので、フォールバックが必要なほど CKAN が壊れた時点で検知できる。
 
 ---
 
@@ -132,10 +136,11 @@ fetchHolidaysBetween(
 
 - **戻り値は常に日付昇順**（CSVのソート順変更に依存しない）
 - **キャッシュなし**: 呼ぶたびに毎回 fetch。複数年が必要なら `fetchHolidaysBetween` か `fetchAllHolidays` を1回呼ぶ方が効率的（README で誘導）
-- **エラー**: fetch 失敗 → `FETCH_FAILED`、パース失敗 → `PARSE_FAILED`。元の例外は `cause` プロパティに保持する。リトライはしない
+- **エラー**: fetch 失敗 → `FETCH_FAILED`、パース失敗 → `PARSE_FAILED`。元の例外は `cause` プロパティに保持する
+- **リトライ**: ライブラリ層は持たない（外側で `FetchOptions.fetch` を被せて自前実装可能）。CLI 層は `--retry` で指数バックオフ + ジッタを行う（CLI セクション参照）
 - **AbortSignal**: `signal.aborted` で取り消された場合も `CaoHolidaysError(FETCH_FAILED)` にラップして投げる（`cause` に元の `DOMException(AbortError)` を入れる）
 - **判定系API（`isHoliday` 等）は提供しない**: 取得結果を `Set` に入れれば済むため
-- **HTTP**: 内閣府サーバへの礼儀として `User-Agent: cao-holidays/<version>` を付与（GitHub リポジトリができたら `cao-holidays/<version> (+<repo-url>)` 形式に拡張）
+- **HTTP**: 内閣府サーバへの礼儀として `User-Agent: cao-holidays/<version>` を付与（`<version>` は packages/js/package.json の version を JSON import で参照）
 
 ### `FetchOptions.fetch` の用途
 
@@ -149,7 +154,8 @@ fetchHolidaysBetween(
 ## CLI
 
 ```
-cao-holidays [<year>|<year>..<year>|<from>..<to>] [--format <csv|json|ics>] [--all] [--timeout <ms>]
+cao-holidays [<year>|<year>..<year>|<from>..<to>] [--format <csv|json|ics>] [--all]
+             [--timeout <ms>] [--retry <n>] [--retry-delay <ms>]
 cao-holidays --help | --version
 ```
 
@@ -177,11 +183,15 @@ cao-holidays --help | --version
 |---|---|---|
 | `--format <fmt>` | `csv` | 出力形式: `csv` \| `json` \| `ics` |
 | `--all` | `false` | CSV収録の全期間（位置引数と同時指定時は INVALID_INPUT 扱いで stderr 警告 + exit 1） |
-| `--timeout <ms>` | `30000` | fetch タイムアウト（ミリ秒）。CLI 内部で `AbortSignal.timeout(ms)` を生成して `FetchOptions.signal` に渡す。超過時は `FETCH_FAILED` → exit 2。`<ms>` が非整数 / 負数 / NaN は INVALID_INPUT 扱いで stderr 警告 + exit 1 |
+| `--timeout <ms>` | `30000` | **per-attempt** fetch タイムアウト（ミリ秒）。CLI 内部で `AbortSignal.timeout(ms)` を生成して `FetchOptions.signal` に渡す。`--retry` を併用した場合は試行ごとに新しい `AbortSignal.timeout` を作る。超過時は `FETCH_FAILED` → exit 2。`<ms>` が非整数 / 負数 / NaN は INVALID_INPUT 扱いで stderr 警告 + exit 1 |
+| `--retry <n>` | `2` | 指数バックオフ + ジッタによる再試行回数（**初回 fetch は含まない**追加試行回数）。`0` で再試行を無効化。対象は HTTP 5xx / 408 / 429 / ネットワーク失敗 (`TypeError`) / `AbortError` / `TimeoutError` のみ。それ以外の 4xx と `PARSE_FAILED` / `INVALID_INPUT` / `OUT_OF_RANGE` は再試行しない。`Retry-After` ヘッダがあれば優先する。`<n>` が非整数 / 負数 / NaN は INVALID_INPUT 扱いで stderr 警告 + exit 1 |
+| `--retry-delay <ms>` | `500` | 初回バックオフのベース（ミリ秒）。実際の待ち時間は `base * 2^attempt` に ±20% のジッタ（`Retry-After` ヘッダがあれば優先）。`<ms>` が非整数 / 負数 / NaN は INVALID_INPUT 扱いで stderr 警告 + exit 1 |
 | `--help`, `-h` | - | ヘルプ表示 |
 | `--version` | - | バージョン表示 |
 
 > **短縮オプションの方針**: `-h` のみ採用。`-v` 系は version か verbose か曖昧なため採用しない（`--version` の長形式のみ）。
+
+> **政府サーバへの配慮**: `--retry` のデフォルトを 2 にしたのは「ネットワーク瞬断に追従するが、上流の障害を肩代わりしない」バランス。`--retry` を増やしても解決しない継続障害には設定値を上げず、上流の停止を疑ってしばらく待つようにする。
 
 ### 終了コード
 
@@ -230,33 +240,60 @@ END:VCALENDAR
 
 ### 実装
 
-`bin/cao-holidays.ts` 1ファイル。ライブラリ関数を呼び、フォーマッタに渡すだけの薄い層。
+`packages/js/bin/cao-holidays.ts` 1ファイル。ライブラリ関数を呼び、フォーマッタに渡すだけの薄い層。
 
 ---
 
 ## パッケージ構成
 
+JS パッケージは `packages/js/` 配下で完結し、root の `fixtures/` `scripts/` `docs/` は言語横断の共有資産。
+
 ```
-cao-holidays/
-├── src/
-│   ├── index.ts        # ライブラリエントリ (fetch* 関数, 型, エラー)
-│   ├── parse.ts        # CSV パーサ
-│   ├── source.ts       # CKAN API でURL解決 + fetch
-│   └── format.ts       # CSV/JSON/ICS フォーマッタ (CLI共有)
-├── bin/
-│   └── cao-holidays.ts # CLI エントリ (shebang 必須)
-├── scripts/
-│   └── sync-fixture.mjs # tests/fixtures/ の CSV を最新に同期するスクリプト（手動実行）
-├── tests/                # テストは tests/ に集約（src 隣接にはしない）
-│   ├── fixtures/         # 内閣府CSVの本物コピー (SJISのまま)
-│   └── *.test.ts
+cao-holidays/                       # repo root（multi-language monorepo）
+├── packages/
+│   └── js/                         # JS パッケージ本体 (npm: cao-holidays)
+│       ├── src/
+│       │   ├── index.ts            # ライブラリエントリ (fetch* 関数, 型, エラー)
+│       │   ├── parse.ts            # CSV パーサ
+│       │   ├── source.ts           # CKAN API でURL解決 + fetch
+│       │   ├── format.ts           # CSV/JSON/ICS フォーマッタ (CLI共有)
+│       │   ├── retry.ts            # CLI のリトライ層 (ライブラリ層は使わない)
+│       │   └── cli.ts              # CLI ロジック (引数パース・振り分け・stdout/stderr)
+│       ├── bin/
+│       │   └── cao-holidays.ts     # CLI エントリ (shebang 必須、cli.ts の薄いラッパー)
+│       ├── tests/                  # テストは tests/ に集約（src 隣接にはしない）
+│       │   └── *.test.ts           # 入力 fixture は ../../../fixtures/ から相対参照
+│       ├── .changeset/             # Changesets 設定 + 未消費 changeset
+│       ├── package.json
+│       ├── tsconfig.json
+│       ├── biome.json              # vcs.root: ".." で repo root の .gitignore を利用
+│       ├── tsup.config.ts
+│       ├── vitest.config.ts
+│       ├── pnpm-lock.yaml
+│       ├── CHANGELOG.md
+│       ├── LICENSE                 # root の LICENSE のコピー（npm tarball 同梱用）
+│       ├── README.md / README.en.md
+│       └── dist/                   # gitignore (tsup 出力)
+├── fixtures/                       # 言語横断の入力 + 期待出力スナップショット
+│   ├── syukujitsu.csv              # 内閣府CSVの本物コピー (SJISのまま)
+│   ├── all.json / 2026.json / 2025-2027.json / range-*.json
+│   ├── 2026.csv / 2026.ics
+│   └── README.md
+├── scripts/                        # maintainer 専用、publish 対象外
+│   ├── sync-fixture.mjs            # 内閣府の最新 CSV を fixtures/syukujitsu.csv に同期
+│   └── generate-fixtures.mjs       # JS 実装の run() で期待出力を再生成
 ├── docs/
-│   ├── research.md
-│   └── spec.md
-└── package.json
+│   ├── spec.md                     # JS パッケージ仕様（このファイル）
+│   ├── monorepo-structure.md       # 全体ディレクトリ設計
+│   ├── release-runbook.md          # 各言語のリリース手順
+│   └── research.md
+├── Makefile                        # 横断開発タスク (lint / format / test / sync-fixture / generate-fixtures)
+├── README.md / README.en.md        # monorepo overview（各 package へのリンク）
+├── LICENSE / SECURITY.md / CONTRIBUTING.md / CODE_OF_CONDUCT.md
+└── .github/                        # workflows (ci-js.yml / release.yml / codeql.yml / healthcheck.yml) と templates
 ```
 
-### `package.json` 要点
+### `packages/js/package.json` 要点
 
 ```json
 {
@@ -271,7 +308,7 @@ cao-holidays/
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
-    "sync-fixture": "node scripts/sync-fixture.mjs",
+    "sync-fixture": "node ../../scripts/sync-fixture.mjs",
     "prepublishOnly": "pnpm build"
   }
 }
@@ -280,6 +317,8 @@ cao-holidays/
 ESM。型定義同梱。CJS互換は当面なし（必要になれば `tsup` 等でdual出力）。
 
 `bin` のビルド出力は `#!/usr/bin/env node` shebang を先頭に付ける（tsup の `banner` か該当オプションで対応）。
+
+`sync-fixture` スクリプトは root の `scripts/sync-fixture.mjs` を相対パスで呼ぶ（fixture は言語横断の共有資産で、JS パッケージ固有ではないため root に置く）。`make sync-fixture` でも実行できる。
 
 ---
 
@@ -303,8 +342,9 @@ ESM。型定義同梱。CJS互換は当面なし（必要になれば `tsup` 等
 |---|---|
 | ランナー | Vitest |
 | ネットワーク | 全テストでモック（`FetchOptions.fetch` 経由）。実通信はCIの定期ヘルスチェックに集約（詳細は CI セクション） |
-| フィクスチャ | 内閣府CSVの本物コピー（SJISのまま） を `tests/fixtures/` に配置。**スナップショット固定** で運用し、CI 定期ヘルスチェックが差分を検知したら手動更新スクリプト `pnpm sync-fixture` で更新（PR を作って差分を明示してマージ） |
-| カバー対象 | パーサー（ヘッダー行スキップ含む） / CKAN URL解決 / `fetchAllHolidays`・`fetchHolidaysByYear`・`fetchHolidaysBetween` / フォーマッタ + CLI |
+| 入力フィクスチャ | 内閣府CSVの本物コピー（SJISのまま） を repo root の `fixtures/syukujitsu.csv` に配置（言語横断の共有）。**スナップショット固定** で運用し、CI 定期ヘルスチェックが差分を検知したら手動更新スクリプト `make sync-fixture` (= `node scripts/sync-fixture.mjs`) で更新（PR を作って差分を明示してマージ） |
+| 期待出力フィクスチャ | `fixtures/{all,2026,2025-2027,range-2026-04-01_2026-05-31}.json` + `2026.csv` + `2026.ics`。JS 実装の CLI `run()` を fake fetch で叩いて生成（`make generate-fixtures` = `node --import tsx ../../scripts/generate-fixtures.mjs`）。他言語実装はこの出力と**バイト一致**することで振る舞いの同一性を担保する |
+| カバー対象 | パーサー（ヘッダー行スキップ含む） / CKAN URL解決 / `fetchAllHolidays`・`fetchHolidaysByYear`・`fetchHolidaysBetween` / フォーマッタ / CLI / リトライ層 (CLI でのみ使用)。現状 100 件のテストで全関数を網羅 |
 | カバレッジ | vitest coverage で計測のみ。閾値による CI 失敗はしない |
 
 ---
@@ -316,10 +356,10 @@ ESM。型定義同梱。CJS互換は当面なし（必要になれば `tsup` 等
 | ホスティング | GitHub Actions |
 | Node マトリクス | 22 / 24（Node 26 が Active LTS 入りしたら追加検討） |
 | OS マトリクス | Ubuntu のみ |
-| PR チェック | `biome check .` / `vitest run` / `tsc --noEmit` / `tsup` build / dist bin smoke test (`node dist/bin/cao-holidays.js --version`) / `publint` + `@arethetypeswrong/cli` |
-| 定期ヘルスチェック | 週次cronで (a) CKAN 経由 と (b) 直URL `https://www8.cao.go.jp/chosei/shukujitsu/syukujitsu.csv` の両方を実取得。各CSVのSHA-256ハッシュをアーティファクトに保存し、前回と差分があれば issue 自動起票（更新日 / 行数 / フォーマット変化、(a)(b) の不一致を検知） |
-| リリース管理 | [changesets](https://github.com/changesets/changesets)。PRに `changeset add`、Release PR マージで自動 publish |
-| npm 認証 | OIDC (npm Trusted Publisher)。`NPM_TOKEN` は使わない |
+| PR チェック | workflow `ci-js.yml`（`paths` フィルタで `packages/js/**`・`fixtures/**`・`scripts/sync-fixture.mjs`・`scripts/generate-fixtures.mjs` の変更時のみ起動）。中身は `biome check .` / `vitest run` / `tsc --noEmit` / `tsup` build / dist bin smoke test (`node dist/bin/cao-holidays.js --version`) / `publint` + `@arethetypeswrong/cli`、`working-directory: ./packages/js` で実行 |
+| 定期ヘルスチェック | 週次cronで (a) CKAN 経由 と (b) 直URL `https://www8.cao.go.jp/chosei/shukujitsu/syukujitsu.csv` の両方を実取得。各CSVのSHA-256ハッシュを `.healthcheck/state.json` に保存し、前回と差分があれば issue 自動起票（更新日 / 行数 / フォーマット変化、(a)(b) の不一致を検知）。実装は curl + jq ベースで言語非依存 |
+| リリース管理 | [changesets](https://github.com/changesets/changesets)。`packages/js/.changeset/*.md` に changeset を追加 → main マージで Release PR 自動作成 → Release PR マージで自動 publish。workflow `release.yml` は `working-directory: ./packages/js` + `changesets/action` の `cwd: packages/js` で動く |
+| npm 認証 | OIDC (npm Trusted Publisher: `aromarious/cao-holidays/release.yml`)。`NPM_TOKEN` は使わない。multi-language 化で `release-js.yml` に rename する場合は npm Trusted Publisher の workflow filename 設定も同期更新が必要 |
 
 ---
 
@@ -354,8 +394,8 @@ ESM。型定義同梱。CJS互換は当面なし（必要になれば `tsup` 等
 | 項目 | 方針 |
 |---|---|
 | GitHubリポジトリ | [aromarious/cao-holidays](https://github.com/aromarious/cao-holidays) (public)。description / homepage / topics 設定済み |
-| README | Install / Quick start (CLI) / Quick start (Library) / Caveats & Caching / Debug / Data source & License / Support / Reporting vulnerabilities。日本語 (`README.md`) と英語 (`README.en.md`) の2本、互いにリンク。冒頭に badges (npm / CI / Node / License) |
-| LICENSE | MIT（`LICENSE` ファイル） |
+| README | repo root の `README.md` / `README.en.md` は **monorepo overview**（package 一覧、quick start (JS) はリンク誘導、ディレクトリ構成、Makefile 紹介）。JS パッケージの詳細仕様（Install / Quick start (CLI) / Quick start (Library) / Caveats / Debug / Data source / Support）は `packages/js/README.md` / `README.en.md` 側にあり、npm tarball にもこれが同梱される。両 README とも日本語 / 英語の2本、互いにリンク。冒頭に badges (npm / CI / Node / License) |
+| LICENSE | MIT。`LICENSE` ファイルは repo root と `packages/js/LICENSE` の両方に配置（後者は npm tarball 同梱用のコピー） |
 | CONTRIBUTING / CoC | `CONTRIBUTING.md`（dev setup / branch / commit / changeset / 言語ポリシー）と `CODE_OF_CONDUCT.md` (Contributor Covenant v2.1) を配置 |
 | Issue / PR テンプレ | `.github/ISSUE_TEMPLATE/{bug_report,feature_request}.yml` + `config.yml`（blank issue 禁止、SECURITY/README への contact link）+ `.github/pull_request_template.md` |
 | データライセンス | 内閣府CSVは日本政府のオープンデータポリシー（現行: [公共データ利用規約 第1.0版](https://www.digital.go.jp/resources/open_data)、2024-07-05〜）に従う。[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 互換。READMEに帰属表記例を掲載:<br>「祝日データ出典: 内閣府『国民の祝日について』(https://www8.cao.go.jp/chosei/shukujitsu/gaiyou.html) を [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) のもとで利用」 |
@@ -366,7 +406,7 @@ ESM。型定義同梱。CJS互換は当面なし（必要になれば `tsup` 等
 
 | 項目 | 方針 |
 |---|---|
-| ブランチ保護 | GitHub Rulesets で `main` を保護。PR 必須（required approvals: 0、solo maintainer）/ linear history / force push 禁止 / deletion 禁止 / 必須 status check は CI の Build & test (Node 22 / 24) と CodeQL の Analyze (javascript-typescript)。詳細はブランチ戦略セクション参照 |
+| ブランチ保護 | GitHub Rulesets で `main` を保護。PR 必須（required approvals: 0、solo maintainer）/ linear history / force push 禁止 / deletion 禁止 / 必須 status check は `CI (JS) / Build & test (Node 22)` `CI (JS) / Build & test (Node 24)` と `CodeQL / Analyze (javascript-typescript)`。Python 等を追加する際は `CI (Python) / ...` 等を追加していく。CI workflow rename / monorepo 移行のように status check 名が変わる場合は、merge 前に ruleset を一旦緩めて新名で再設定する手順を取る |
 | 開発フロー | `feature/*` / `fix/*` / `chore/*` ブランチで作業 → PR → squash or rebase で `main` にマージ |
 | リリースフロー | changesets を `pnpm exec changeset` で添付 → main マージで Release PR 自動作成 → Release PR マージで自動 npm publish (OIDC) |
 | 言語ポリシー | PR / Issue のタイトル・本文は **日本語**。コミットメッセージと `README.en.md` は **英語**。CONTRIBUTING.md / CODE_OF_CONDUCT.md などのコミュニティドキュメントは目的に応じて選択（CONTRIBUTING は日本語、CoC は Contributor Covenant 原文の英語） |
@@ -392,8 +432,8 @@ ESM。型定義同梱。CJS互換は当面なし（必要になれば `tsup` 等
 - 営業日計算
 - ディスクキャッシュ
 - 静的データ埋め込み（オフライン動作）
-- リトライ
+- ライブラリ層のリトライ機構（CLI 層では `--retry` で指数バックオフ + ジッタを行う）
 - ライブラリのタイムアウトデフォルト設定（CLI 層では `--timeout` で 30 秒デフォルトを設定する）
 - 多言語対応（内閣府名称をそのまま返すのみ）
 
-> リトライ・タイムアウト**のライブラリデフォルト**は持たない。利用者は `AbortSignal.timeout(ms)` を `FetchOptions.signal` に渡してタイムアウトを実現可能。CLI 層は別途 `--timeout` でデフォルト 30 秒のタイムアウトを設定する。
+> **ライブラリ**側はリトライ・タイムアウトのデフォルトを持たない。利用者は `AbortSignal.timeout(ms)` を `FetchOptions.signal` に渡してタイムアウトを実現でき、リトライが必要なら `FetchOptions.fetch` を被せて自前で実装する。**CLI** 側は最終利用者の体験を優先し、`--timeout` 30000ms と `--retry` 2 をデフォルトに設定する（どちらも明示フラグで無効化 / 上書き可能）。

@@ -2,6 +2,8 @@
 
 このリポジトリへのコントリビュート方法をまとめます。Bug 修正、機能追加、ドキュメント改善、どれも歓迎します。
 
+このリポジトリは monorepo で、現在は JavaScript / TypeScript 実装 ([`packages/js/`](./packages/js/README.md)) のみが入っています。Python 以降は [ロードマップ #14](https://github.com/aromarious/cao-holidays/issues/14) と [`docs/monorepo-structure.md`](./docs/monorepo-structure.md) を参照してください。
+
 ## 開発環境のセットアップ
 
 - **Node.js**: 22 もしくは 24（LTS 系）。`.nvmrc` に 24 を pin しているので `nvm use` / `mise install` で揃います
@@ -9,6 +11,7 @@
 - 初回セットアップ:
 
   ```sh
+  cd packages/js
   pnpm install
   pnpm test          # vitest run
   pnpm typecheck     # tsc --noEmit
@@ -16,10 +19,13 @@
   pnpm build         # tsup
   ```
 
+  または repo root から `make install && make test` 等の横断ターゲットでも可（[`Makefile`](./Makefile) 参照）。
+
 - フィクスチャ更新（CI のヘルスチェックで差分が検知された時など）:
 
   ```sh
-  pnpm sync-fixture  # tests/fixtures/syukujitsu.csv を最新の内閣府CSVに上書き
+  make sync-fixture        # fixtures/syukujitsu.csv を最新の内閣府 CSV に上書き
+  make generate-fixtures   # 期待出力 JSON / CSV / ICS を再生成（CSV を更新したら必ず）
   ```
 
 ## ブランチ運用
@@ -31,11 +37,12 @@
 ## PR ガイド
 
 - PR タイトル・本文は **日本語** で書いてください（コミットメッセージと `README.en.md` は英語のまま）
-- 変更内容に応じて [changeset](https://github.com/changesets/changesets) を1つ追加してください:
+- JS パッケージへの変更には [changeset](https://github.com/changesets/changesets) を1つ追加してください:
 
   ```sh
+  cd packages/js
   pnpm exec changeset
-  # patch / minor / major と説明を入力 → .changeset/<random>.md がコミット対象に
+  # patch / minor / major と説明を入力 → packages/js/.changeset/<random>.md がコミット対象に
   ```
 
   バグ修正やドキュメント改善の場合は patch、後方互換のある機能追加は minor、破壊的変更は major（`0.x` のうちは minor で破壊的変更も含めて構いません）。
@@ -47,18 +54,18 @@
 - 本文は **英語**、内容は技術的な事実と意図を簡潔に
 - conventional commits（`feat:` / `fix:` / `chore:` / `docs:` / `ci:` / `refactor:` / `test:` 等）に揃えてあります。Squash 時の自動タイトル整形のためにも従ってください
 
-## コーディング規約
+## コーディング規約 (JS)
 
 - TypeScript `strict: true` + `noUncheckedIndexedAccess: true`
-- Biome v2 系で format / lint。`pnpm format` で auto-fix
+- Biome v2 系で format / lint。`cd packages/js && pnpm format` で auto-fix
 - セミコロン無し（`semicolons: "asNeeded"`）
 - すべての export に JSDoc を付ける（日本語）
 
-## テスト
+## テスト (JS)
 
-- Vitest を使用。`tests/**/*.test.ts` 配下に配置
+- Vitest を使用。`packages/js/tests/**/*.test.ts` 配下に配置
 - 実通信は CI の定期ヘルスチェックに集約。ユニットテストは `FetchOptions.fetch` でモックしてください
-- フィクスチャは `tests/fixtures/syukujitsu.csv`（SJIS のまま固定）
+- 入力フィクスチャは `fixtures/syukujitsu.csv`（SJIS のまま固定、repo root の言語横断ディレクトリ）。期待出力 (`fixtures/*.json`, `*.csv`, `*.ics`) は `make generate-fixtures` で再生成します
 
 ## バグ報告 / 機能要望
 

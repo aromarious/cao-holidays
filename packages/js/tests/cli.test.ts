@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest'
 import { run } from '../src/cli.ts'
 import { CKAN_URL } from '../src/source.ts'
 
-const fixturePath = fileURLToPath(new URL('./fixtures/syukujitsu.csv', import.meta.url))
+const fixturePath = fileURLToPath(new URL('../../../fixtures/syukujitsu.csv', import.meta.url))
 const CSV_URL = 'https://www8.cao.go.jp/chosei/shukujitsu/syukujitsu.csv'
 
 const ckanResponseJson = {

@@ -50,7 +50,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
     "format": "biome check . --write",
-    "sync-fixture": "node scripts/sync-fixture.mjs",
+    "sync-fixture": "node ../../scripts/sync-fixture.mjs",
     "prepublishOnly": "pnpm build"
   },
   "publishConfig": {
