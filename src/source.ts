@@ -1,7 +1,11 @@
+import createDebug from 'debug'
 import pkg from '../package.json' with { type: 'json' }
 import { CaoHolidaysError } from './errors.ts'
 import { decodeSjis } from './parse.ts'
 import type { FetchOptions } from './types.ts'
+
+/** `DEBUG=cao-holidays` で有効化されるデバッグロガー。 */
+const debug = createDebug('cao-holidays')
 
 /** デジタル庁オープンデータカタログ（CKAN）の `package_show` API エンドポイント。 */
 export const CKAN_URL = 'https://data.e-gov.go.jp/data/api/action/package_show?id=cao_20190522_0002'
@@ -42,6 +46,7 @@ function wrapFetchError(message: string, cause: unknown): never {
 export async function resolveCsvUrl(options: FetchOptions = {}): Promise<string> {
   const { fetchImpl, init } = makeFetcher(options)
 
+  debug('resolving CSV URL via CKAN: %s', CKAN_URL)
   let res: Response
   try {
     res = await fetchImpl(CKAN_URL, init)
@@ -69,6 +74,7 @@ export async function resolveCsvUrl(options: FetchOptions = {}): Promise<string>
   if (!url) {
     throw new CaoHolidaysError('PARSE_FAILED', 'CKAN metadata response has no resources[0].url')
   }
+  debug('resolved CSV URL: %s', url)
   return url
 }
 
@@ -103,6 +109,7 @@ export async function fetchCsvText(options: FetchOptions = {}): Promise<string> 
   const url = await resolveCsvUrl(options)
   const { fetchImpl, init } = makeFetcher(options)
 
+  debug('fetching CSV: %s', url)
   let res: Response
   try {
     res = await fetchImpl(url, init)
@@ -115,5 +122,6 @@ export async function fetchCsvText(options: FetchOptions = {}): Promise<string> 
   }
 
   const buf = await res.arrayBuffer()
+  debug('fetched %d bytes', buf.byteLength)
   return decodeSjis(buf)
 }
