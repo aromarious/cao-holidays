@@ -16,7 +16,7 @@ updates:
     labels:
       - dependencies
 
-  # GitHub Actions の SHA pin を週次で最新タグ → SHA に追従
+  # GitHub Actions の major tag pin を週次で確認（major bump があれば PR）
   - package-ecosystem: github-actions
     directory: /
     schedule:
