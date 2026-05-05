@@ -3,6 +3,7 @@ import pkg from '../package.json' with { type: 'json' }
 import { CaoHolidaysError } from './errors.ts'
 import { formatCsv, formatIcs, formatJson } from './format.ts'
 import { fetchAllHolidays, fetchHolidaysBetween, fetchHolidaysByYear } from './index.ts'
+import { makeRetryingFetch } from './retry.ts'
 import type { FetchOptions, Holiday } from './types.ts'
 
 /** CLI 実行結果。 */
@@ -18,8 +19,13 @@ export type CliResult = {
 const FORMATS = ['csv', 'json', 'ics'] as const
 type Format = (typeof FORMATS)[number]
 
+const DEFAULT_TIMEOUT_MS = 30_000
+const DEFAULT_RETRIES = 2
+const DEFAULT_RETRY_DELAY_MS = 500
+
 const HELP_TEXT = `Usage:
-  cao-holidays [<year>|<year>..<year>|<from>..<to>] [--format <csv|json|ics>] [--all] [--timeout <ms>]
+  cao-holidays [<year>|<year>..<year>|<from>..<to>] [--format <csv|json|ics>] [--all]
+               [--timeout <ms>] [--retry <n>] [--retry-delay <ms>]
   cao-holidays --help | --version
 
 Arguments:
@@ -31,12 +37,16 @@ Arguments:
 Options:
   --format <fmt>     Output format: csv (default) | json | ics
   --all              Output all holidays in CSV coverage (incompatible with positional args)
-  --timeout <ms>     Fetch timeout in milliseconds (default: 30000)
+  --timeout <ms>     Per-attempt fetch timeout in milliseconds (default: 30000)
+  --retry <n>        Max retry count on transient failures (default: 2; 0 disables)
+  --retry-delay <ms> Base delay for exponential backoff in milliseconds (default: 500)
   -h, --help         Show this help
   --version          Show version
 
 Source: Cabinet Office (内閣府) of Japan via the e-gov CKAN API.
 Output dates are JST. Library/CLI throws/exits on out-of-range or malformed input.
+Retry covers HTTP 5xx / 408 / 429 / network failures; client errors are not retried.
+Please be considerate to the upstream public-data server when raising --retry.
 `
 
 /**
@@ -56,6 +66,8 @@ export async function run(
     format?: string
     all?: boolean
     timeout?: string
+    retry?: string
+    'retry-delay'?: string
     help?: boolean
     version?: boolean
   }
@@ -67,6 +79,8 @@ export async function run(
         format: { type: 'string' },
         all: { type: 'boolean' },
         timeout: { type: 'string' },
+        retry: { type: 'string' },
+        'retry-delay': { type: 'string' },
         help: { type: 'boolean', short: 'h' },
         version: { type: 'boolean' },
       },
@@ -89,8 +103,18 @@ export async function run(
   }
 
   // --timeout
-  const timeoutMs = parseTimeout(flags.timeout)
+  const timeoutMs = parseNonNegativeInt(flags.timeout, DEFAULT_TIMEOUT_MS, '--timeout')
   if (timeoutMs instanceof Error) return fail(1, timeoutMs.message)
+
+  // --retry / --retry-delay
+  const retries = parseNonNegativeInt(flags.retry, DEFAULT_RETRIES, '--retry')
+  if (retries instanceof Error) return fail(1, retries.message)
+  const retryDelayMs = parseNonNegativeInt(
+    flags['retry-delay'],
+    DEFAULT_RETRY_DELAY_MS,
+    '--retry-delay',
+  )
+  if (retryDelayMs instanceof Error) return fail(1, retryDelayMs.message)
 
   // 引数組み合わせの検証
   if (flags.all && positionals.length > 0) {
@@ -100,22 +124,41 @@ export async function run(
     return fail(1, `expected at most 1 positional argument, got ${positionals.length}`)
   }
 
-  // タイムアウト用 AbortSignal の生成（テストで fetch DI が来ても透過に渡す）
-  const signal = AbortSignal.timeout(timeoutMs)
-  const fetchOpts: FetchOptions = {
-    signal,
-    ...(injected.fetch ? { fetch: injected.fetch } : {}),
-  }
+  // fetch 構築:
+  // - retries=0: 従来通り、グローバル AbortSignal.timeout(timeoutMs) を signal で渡す
+  // - retries>0: makeRetryingFetch でラップ。timeoutMs は per-attempt として fresh signal を毎試行作る
+  let stderrBuffer = ''
+  const baseFetch = injected.fetch ?? globalThis.fetch
+  const fetchOpts: FetchOptions =
+    retries > 0
+      ? {
+          fetch: makeRetryingFetch(baseFetch, {
+            retries,
+            baseDelayMs: retryDelayMs,
+            perAttemptTimeoutMs: timeoutMs,
+            onRetry: ({ attempt, delayMs, reason }) => {
+              stderrBuffer += `retry ${attempt}/${retries} after ${delayMs}ms: ${reason}\n`
+            },
+          }),
+        }
+      : {
+          signal: AbortSignal.timeout(timeoutMs),
+          ...(injected.fetch ? { fetch: injected.fetch } : {}),
+        }
 
   try {
     const holidays = await dispatch(positionals[0], flags.all === true, fetchOpts)
-    return ok(serialize(holidays, format))
+    return { stdout: serialize(holidays, format), stderr: stderrBuffer, code: 0 }
   } catch (e) {
-    if (e instanceof CaoHolidaysError) {
-      const code: 1 | 2 = e.code === 'INVALID_INPUT' || e.code === 'OUT_OF_RANGE' ? 1 : 2
-      return fail(code, `${e.code}: ${e.message}`)
-    }
-    return fail(2, (e as Error).message ?? String(e))
+    const message =
+      e instanceof CaoHolidaysError
+        ? `${e.code}: ${e.message}`
+        : ((e as Error).message ?? String(e))
+    const code: 1 | 2 =
+      e instanceof CaoHolidaysError && (e.code === 'INVALID_INPUT' || e.code === 'OUT_OF_RANGE')
+        ? 1
+        : 2
+    return { stdout: '', stderr: `${stderrBuffer}${message}\n`, code }
   }
 }
 
@@ -179,12 +222,16 @@ function serialize(holidays: Holiday[], format: Format): string {
   }
 }
 
-/** `--timeout` の値を検証して number にする。NG なら Error を返す（投げない）。 */
-function parseTimeout(raw: string | undefined): number | Error {
-  if (raw === undefined) return 30_000
+/** 整数オプションを検証して number にする。NG なら Error を返す（投げない）。 */
+function parseNonNegativeInt(
+  raw: string | undefined,
+  defaultValue: number,
+  flagName: string,
+): number | Error {
+  if (raw === undefined) return defaultValue
   const n = Number(raw)
   if (!Number.isInteger(n) || n < 0) {
-    return new Error(`--timeout must be a non-negative integer (ms), got: ${raw}`)
+    return new Error(`${flagName} must be a non-negative integer, got: ${raw}`)
   }
   return n
 }

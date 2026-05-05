@@ -1,3 +1,8 @@
+/**
+ * `src/source.ts` のユニットテスト。
+ * CKAN package_show API から CSV URL を解決する `resolveCsvUrl` と、解決済み URL から SJIS デコード済み CSV テキストを得る `fetchCsvText` を、
+ * fake fetch を使って HTTP・パース・User-Agent・signal 伝播の各ケースを検証する。
+ */
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
@@ -38,7 +43,7 @@ function makeFakeFetch(handlers: Record<string, () => Response | Promise<Respons
 }
 
 describe('CKAN_URL', () => {
-  it('points to the official cao_20190522_0002 dataset', () => {
+  it('公式 cao_20190522_0002 データセットを指している', () => {
     expect(CKAN_URL).toBe(
       'https://data.e-gov.go.jp/data/api/action/package_show?id=cao_20190522_0002',
     )
@@ -46,7 +51,7 @@ describe('CKAN_URL', () => {
 })
 
 describe('resolveCsvUrl', () => {
-  it('returns resources[0].url from the CKAN response', async () => {
+  it('CKAN レスポンスから resources[0].url を返す', async () => {
     const { fetch } = makeFakeFetch({
       [CKAN_URL]: () => new Response(JSON.stringify(ckanResponseJson)),
     })
@@ -54,7 +59,7 @@ describe('resolveCsvUrl', () => {
     expect(url).toBe(REAL_CSV_URL)
   })
 
-  it('sends a User-Agent header identifying the package', async () => {
+  it('パッケージを識別する User-Agent ヘッダを付与する', async () => {
     const { fetch, calls } = makeFakeFetch({
       [CKAN_URL]: () => new Response(JSON.stringify(ckanResponseJson)),
     })
@@ -63,7 +68,7 @@ describe('resolveCsvUrl', () => {
     expect(headers.get('User-Agent')).toMatch(/^cao-holidays\//)
   })
 
-  it('throws FETCH_FAILED on non-2xx HTTP response', async () => {
+  it('HTTP 非 2xx 応答で FETCH_FAILED を投げる', async () => {
     const { fetch } = makeFakeFetch({
       [CKAN_URL]: () => new Response('Server Error', { status: 500 }),
     })
@@ -74,7 +79,7 @@ describe('resolveCsvUrl', () => {
     })
   })
 
-  it('throws PARSE_FAILED on malformed JSON response', async () => {
+  it('JSON が壊れているレスポンスで PARSE_FAILED を投げる', async () => {
     const { fetch } = makeFakeFetch({
       [CKAN_URL]: () => new Response('<<not json>>'),
     })
@@ -84,7 +89,7 @@ describe('resolveCsvUrl', () => {
     })
   })
 
-  it('throws PARSE_FAILED when CKAN response has no resources', async () => {
+  it('CKAN レスポンスに resources が無いとき PARSE_FAILED を投げる', async () => {
     const empty = { success: true, result: { resources: [] } }
     const { fetch } = makeFakeFetch({
       [CKAN_URL]: () => new Response(JSON.stringify(empty)),
@@ -95,7 +100,7 @@ describe('resolveCsvUrl', () => {
     })
   })
 
-  it('wraps AbortSignal aborts as FETCH_FAILED with the original cause', async () => {
+  it('AbortSignal による中断を FETCH_FAILED にラップし元の例外を cause に保持する', async () => {
     const ac = new AbortController()
     ac.abort(new DOMException('test', 'AbortError'))
     const { fetch } = makeFakeFetch({
@@ -114,7 +119,7 @@ describe('resolveCsvUrl', () => {
 })
 
 describe('fetchCsvText', () => {
-  it('resolves URL via CKAN, fetches the CSV, and returns SJIS-decoded text', async () => {
+  it('CKAN で URL 解決 → CSV 取得 → SJIS デコード済みテキストを返す', async () => {
     const csvBuf = await readFile(fixturePath)
     const { fetch } = makeFakeFetch({
       [CKAN_URL]: () => new Response(JSON.stringify(ckanResponseJson)),
@@ -126,7 +131,7 @@ describe('fetchCsvText', () => {
     expect(text).toContain('2027/11/23,勤労感謝の日')
   })
 
-  it('forwards FetchOptions.signal to both CKAN and CSV requests', async () => {
+  it('FetchOptions.signal を CKAN と CSV 両方のリクエストに伝播する', async () => {
     const csvBuf = await readFile(fixturePath)
     const ac = new AbortController()
     const { fetch, calls } = makeFakeFetch({
@@ -140,7 +145,7 @@ describe('fetchCsvText', () => {
     }
   })
 
-  it('throws FETCH_FAILED when the CSV download returns a non-2xx response', async () => {
+  it('CSV ダウンロードが非 2xx を返すと FETCH_FAILED を投げる', async () => {
     const { fetch } = makeFakeFetch({
       [CKAN_URL]: () => new Response(JSON.stringify(ckanResponseJson)),
       [REAL_CSV_URL]: () => new Response('Not Found', { status: 404 }),
