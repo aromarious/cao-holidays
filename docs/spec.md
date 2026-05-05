@@ -338,10 +338,11 @@ ESM。型定義同梱。CJS互換は当面なし（必要になれば `tsup` 等
 
 | 項目 | 方針 |
 |---|---|
-| GitHubリポジトリ | 当面作らない（ローカル開発）。MVP完成後にpublic化 |
-| README | Install / Quick start (CLI) / Quick start (Library) / Data source & License / Caveats & Caching / Debug |
+| GitHubリポジトリ | [aromarious/cao-holidays](https://github.com/aromarious/cao-holidays) (public)。description / homepage / topics 設定済み |
+| README | Install / Quick start (CLI) / Quick start (Library) / Caveats & Caching / Debug / Data source & License / Support / Reporting vulnerabilities。日本語 (`README.md`) と英語 (`README.en.md`) の2本、互いにリンク。冒頭に badges (npm / CI / Node / License) |
 | LICENSE | MIT（`LICENSE` ファイル） |
-| CONTRIBUTING / CoC / issue・PR テンプレ | 当面作らない |
+| CONTRIBUTING / CoC | `CONTRIBUTING.md`（dev setup / branch / commit / changeset / 言語ポリシー）と `CODE_OF_CONDUCT.md` (Contributor Covenant v2.1) を配置 |
+| Issue / PR テンプレ | `.github/ISSUE_TEMPLATE/{bug_report,feature_request}.yml` + `config.yml`（blank issue 禁止、SECURITY/README への contact link）+ `.github/pull_request_template.md` |
 | データライセンス | 内閣府CSVは日本政府のオープンデータポリシー（現行: [公共データ利用規約 第1.0版](https://www.digital.go.jp/resources/open_data)、2024-07-05〜）に従う。[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 互換。READMEに帰属表記例を掲載:<br>「祝日データ出典: 内閣府『国民の祝日について』(https://www8.cao.go.jp/chosei/shukujitsu/gaiyou.html) を [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) のもとで利用」 |
 
 ---

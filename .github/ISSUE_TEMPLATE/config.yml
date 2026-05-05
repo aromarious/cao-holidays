@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 脆弱性報告 (Security vulnerabilities)
+    url: https://github.com/aromarious/cao-holidays/security/advisories/new
+    about: 脆弱性は public issue ではなく GitHub Private Vulnerability Reporting で報告してください
+  - name: ドキュメント (Documentation)
+    url: https://github.com/aromarious/cao-holidays#readme
+    about: README / API リファレンスはこちら
