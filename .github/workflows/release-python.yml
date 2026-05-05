@@ -1,0 +1,71 @@
+name: Release (Python)
+
+on:
+  push:
+    tags:
+      - 'python-v*'
+  workflow_dispatch: {}
+
+# - contents: write   : create GitHub Release for the published tag
+# - id-token: write   : PyPI OIDC trusted publishing
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: release-python-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build & publish to PyPI
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/cao-holidays
+    defaults:
+      run:
+        working-directory: ./packages/python
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.13'
+
+      - name: Verify tag matches package version
+        env:
+          TAG_REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          # tag は `python-vX.Y.Z` 形式。package version (pyproject.toml dynamic = src/cao_holidays/__init__.py)
+          # と一致していなければ publish を中断する
+          tag_version="${TAG_REF#refs/tags/python-v}"
+          pkg_version=$(uv run --no-sync python -c "from cao_holidays import __version__; print(__version__)")
+          echo "tag_version=$tag_version"
+          echo "pkg_version=$pkg_version"
+          test "$tag_version" = "$pkg_version"
+
+      - name: Build sdist + wheel
+        run: uv build
+
+      - name: Publish to PyPI (Trusted Publishing / OIDC)
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: packages/python/dist/
+          attestations: true
+          print-hash: true
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        working-directory: .
+        run: |
+          set -euo pipefail
+          version="${TAG#python-v}"
+          gh release create "$TAG" \
+            --title "Python $version" \
+            --notes "Automated release for cao-holidays Python $version. See [packages/python/CHANGELOG.md](https://github.com/aromarious/cao-holidays/blob/main/packages/python/CHANGELOG.md) for details."

@@ -16,6 +16,21 @@ updates:
     labels:
       - dependencies
 
+  # Python (uv / pip) deps の週次更新（packages/python/）
+  - package-ecosystem: pip
+    directory: /packages/python
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:00'
+      timezone: Asia/Tokyo
+    open-pull-requests-limit: 10
+    groups:
+      dev-dependencies:
+        dependency-type: development
+    labels:
+      - dependencies
+
   # GitHub Actions の major tag pin を週次で確認（major bump があれば PR）
   - package-ecosystem: github-actions
     directory: /

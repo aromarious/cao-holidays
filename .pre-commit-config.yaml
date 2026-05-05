@@ -1,0 +1,37 @@
+# pre-commit hooks for cao-holidays monorepo
+#
+# 全言語のフックを統括する。各 hook は files: で対象パッケージを scope 限定し、
+# 一方の言語の変更で他方のフックが走らないようにしている。
+#
+# セットアップ:
+#   pip install pre-commit  # または brew install pre-commit / pipx install pre-commit
+#   pre-commit install
+#
+# 手動実行:
+#   pre-commit run --all-files
+
+repos:
+  - repo: https://github.com/biomejs/pre-commit
+    rev: v2.4.0
+    hooks:
+      - id: biome-check
+        files: ^packages/js/
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.12
+    hooks:
+      - id: ruff-check
+        files: ^packages/python/
+        args: [--fix]
+      - id: ruff-format
+        files: ^packages/python/
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.20.2
+    hooks:
+      - id: mypy
+        files: ^packages/python/src/
+        # mypy はプロジェクトの依存型 stub を見る必要があるので additional_dependencies で渡す。
+        # 雛形段階では httpx だけ。Step 13c で実装が増えたら追加する。
+        additional_dependencies:
+          - httpx>=0.27

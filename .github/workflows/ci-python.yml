@@ -1,0 +1,85 @@
+name: CI (Python)
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# - contents: read     : checkout
+# - pull-requests: read: dorny/paths-filter が PR 時に変更ファイルを取得
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: ci-python-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # Python パッケージに関係するファイルが変更されたかを検出する。
+  # 検出結果に応じて build 行をスキップさせることで、required status check の context 名は
+  # 常に発行されつつ、無関係な PR (例: JS のみ変更) では実テストはスキップされる。
+  changes:
+    name: Detect Python changes
+    runs-on: ubuntu-latest
+    outputs:
+      python: ${{ steps.filter.outputs.python }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            python:
+              - 'packages/python/**'
+              - 'fixtures/**'
+              - '.github/workflows/ci-python.yml'
+
+  build:
+    name: Build & test (Python ${{ matrix.python }})
+    needs: changes
+    if: ${{ needs.changes.outputs.python == 'true' }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.11', '3.12', '3.13']
+
+    defaults:
+      run:
+        working-directory: ./packages/python
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install dependencies (uv sync)
+        run: uv sync --frozen
+
+      - name: Lint (ruff check)
+        run: uv run ruff check .
+
+      - name: Format check (ruff format --check)
+        run: uv run ruff format --check .
+
+      - name: Typecheck (mypy --strict)
+        run: uv run mypy src
+
+      - name: Test (pytest)
+        run: uv run pytest
+
+      - name: Build (uv build)
+        run: uv build
+
+      - name: Smoke test wheel
+        run: |
+          set -euo pipefail
+          version=$(uv run python -c "from cao_holidays import __version__; print(__version__)")
+          echo "version=$version"
+          test -n "$version"
+          ls dist/
