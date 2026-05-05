@@ -1,3 +1,8 @@
+/**
+ * `src/index.ts` の公開ライブラリ API の統合テスト。
+ * `fetchAllHolidays` / `fetchHolidaysByYear` / `fetchHolidaysBetween` を fake fetch + 実フィクスチャ CSV で実行し、
+ * 結果の整列・絞り込み・入力バリデーション (INVALID_INPUT) ・カバレッジ判定 (OUT_OF_RANGE) を検証する。
+ */
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
@@ -41,7 +46,7 @@ async function expectError(promise: Promise<unknown>, code: CaoHolidaysError['co
 }
 
 describe('fetchAllHolidays', () => {
-  it('returns all 1067 holidays from the fixture, sorted ascending', async () => {
+  it('フィクスチャ全 1067 件を昇順で返す', async () => {
     const fetch = await makeFixtureFetch()
     const holidays = await fetchAllHolidays({ fetch })
     expect(holidays.length).toBe(1067)
@@ -51,7 +56,7 @@ describe('fetchAllHolidays', () => {
 })
 
 describe('fetchHolidaysByYear', () => {
-  it('returns only holidays for the specified year', async () => {
+  it('指定年の祝日のみを返す', async () => {
     const fetch = await makeFixtureFetch()
     const holidays = await fetchHolidaysByYear(2026, { fetch })
     expect(holidays.length).toBeGreaterThan(0)
@@ -59,39 +64,39 @@ describe('fetchHolidaysByYear', () => {
     expect(holidays[0]).toEqual({ date: '2026-01-01', name: '元日' })
   })
 
-  it('throws INVALID_INPUT for NaN', async () => {
+  it('NaN は INVALID_INPUT', async () => {
     const fetch = await makeFixtureFetch()
     await expectError(fetchHolidaysByYear(Number.NaN, { fetch }), 'INVALID_INPUT')
   })
 
-  it('throws INVALID_INPUT for non-integer (1.5)', async () => {
+  it('非整数 (1.5) は INVALID_INPUT', async () => {
     const fetch = await makeFixtureFetch()
     await expectError(fetchHolidaysByYear(1.5, { fetch }), 'INVALID_INPUT')
   })
 
-  it('throws INVALID_INPUT for negative year', async () => {
+  it('負数の年は INVALID_INPUT', async () => {
     const fetch = await makeFixtureFetch()
     await expectError(fetchHolidaysByYear(-1, { fetch }), 'INVALID_INPUT')
   })
 
-  it('throws INVALID_INPUT for Infinity', async () => {
+  it('Infinity は INVALID_INPUT', async () => {
     const fetch = await makeFixtureFetch()
     await expectError(fetchHolidaysByYear(Number.POSITIVE_INFINITY, { fetch }), 'INVALID_INPUT')
   })
 
-  it('throws OUT_OF_RANGE for year before CSV coverage (1900)', async () => {
+  it('CSV カバレッジより前の年 (1900) は OUT_OF_RANGE', async () => {
     const fetch = await makeFixtureFetch()
     await expectError(fetchHolidaysByYear(1900, { fetch }), 'OUT_OF_RANGE')
   })
 
-  it('throws OUT_OF_RANGE for year after CSV coverage (2100)', async () => {
+  it('CSV カバレッジより後の年 (2100) は OUT_OF_RANGE', async () => {
     const fetch = await makeFixtureFetch()
     await expectError(fetchHolidaysByYear(2100, { fetch }), 'OUT_OF_RANGE')
   })
 })
 
 describe('fetchHolidaysBetween', () => {
-  it('returns holidays within the inclusive range (string args)', async () => {
+  it('文字列引数で両端含む範囲の祝日を返す', async () => {
     const fetch = await makeFixtureFetch()
     const holidays = await fetchHolidaysBetween('2026-01-01', '2026-01-12', { fetch })
     expect(holidays).toEqual([
@@ -100,7 +105,7 @@ describe('fetchHolidaysBetween', () => {
     ])
   })
 
-  it('accepts Date arguments and normalizes to JST', async () => {
+  it('Date 引数を受け取り JST に正規化する', async () => {
     const fetch = await makeFixtureFetch()
     // Date inputs (UTC midnight on the boundary)
     const from = new Date('2026-01-01T00:00:00Z')
@@ -110,24 +115,24 @@ describe('fetchHolidaysBetween', () => {
     expect(holidays[0]).toEqual({ date: '2026-01-01', name: '元日' })
   })
 
-  it('returns empty array for an in-range period with no holidays', async () => {
+  it('範囲内に祝日がなければ空配列を返す', async () => {
     const fetch = await makeFixtureFetch()
     // 2026-01-02 is a non-holiday weekday in the new year period
     const holidays = await fetchHolidaysBetween('2026-01-02', '2026-01-02', { fetch })
     expect(holidays).toEqual([])
   })
 
-  it('throws INVALID_INPUT for malformed date string', async () => {
+  it('不正な日付文字列は INVALID_INPUT', async () => {
     const fetch = await makeFixtureFetch()
     await expectError(fetchHolidaysBetween('2026/1/1', '2026-12-31', { fetch }), 'INVALID_INPUT')
   })
 
-  it('throws INVALID_INPUT for from > to', async () => {
+  it('from > to は INVALID_INPUT', async () => {
     const fetch = await makeFixtureFetch()
     await expectError(fetchHolidaysBetween('2026-12-31', '2026-01-01', { fetch }), 'INVALID_INPUT')
   })
 
-  it('throws INVALID_INPUT for non-Date / non-string args', async () => {
+  it('Date / string 以外の引数は INVALID_INPUT', async () => {
     const fetch = await makeFixtureFetch()
     await expectError(
       // biome-ignore lint/suspicious/noExplicitAny: testing invalid input
@@ -136,19 +141,19 @@ describe('fetchHolidaysBetween', () => {
     )
   })
 
-  it('throws OUT_OF_RANGE when both endpoints precede CSV coverage', async () => {
+  it('両端が CSV カバレッジより前なら OUT_OF_RANGE', async () => {
     const fetch = await makeFixtureFetch()
     await expectError(fetchHolidaysBetween('1900-01-01', '1900-12-31', { fetch }), 'OUT_OF_RANGE')
   })
 
-  it('throws OUT_OF_RANGE when both endpoints follow CSV coverage', async () => {
+  it('両端が CSV カバレッジより後なら OUT_OF_RANGE', async () => {
     const fetch = await makeFixtureFetch()
     await expectError(fetchHolidaysBetween('2100-01-01', '2100-12-31', { fetch }), 'OUT_OF_RANGE')
   })
 
-  it('does NOT throw OUT_OF_RANGE when range partially overlaps CSV', async () => {
+  it('範囲が CSV と一部重なるなら OUT_OF_RANGE にしない', async () => {
     const fetch = await makeFixtureFetch()
-    // 1954 is out, 1955 is in — should return 1955-only holidays
+    // 1954 は範囲外、1955 は範囲内 — 1955 のみの祝日が返る
     const holidays = await fetchHolidaysBetween('1954-06-01', '1955-12-31', { fetch })
     expect(holidays.length).toBeGreaterThan(0)
     for (const h of holidays) expect(h.date.startsWith('1955-')).toBe(true)
