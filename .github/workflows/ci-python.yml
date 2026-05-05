@@ -18,8 +18,9 @@ concurrency:
 
 jobs:
   # Python パッケージに関係するファイルが変更されたかを検出する。
-  # 検出結果に応じて build 行をスキップさせることで、required status check の context 名は
-  # 常に発行されつつ、無関係な PR (例: JS のみ変更) では実テストはスキップされる。
+  # (workflow レベルの paths filter だと workflow 自体が起動せず、required check が
+  # 不在となって PR が永久 BLOCKED になる問題を回避するため、トリガーは無条件にして
+  # job 内で paths-filter を使う。)
   changes:
     name: Detect Python changes
     runs-on: ubuntu-latest
@@ -36,47 +37,65 @@ jobs:
               - 'fixtures/**'
               - '.github/workflows/ci-python.yml'
 
+  # 各 step を個別に `if:` で skip させる。これで matrix が常に展開し、
+  # required status check の context (`Build & test (Python 3.11)` 等) が常に emit される。
+  # skip は GitHub 上 success 扱いなので無関係 PR でも check は通る。
   build:
     name: Build & test (Python ${{ matrix.python }})
     needs: changes
-    if: ${{ needs.changes.outputs.python == 'true' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         python: ['3.11', '3.12', '3.13']
 
-    defaults:
-      run:
-        working-directory: ./packages/python
-
     steps:
+      - name: Skip notice
+        if: needs.changes.outputs.python != 'true'
+        run: echo "No Python-related changes; all subsequent steps will be skipped."
+
       - uses: actions/checkout@v6
+        if: needs.changes.outputs.python == 'true'
 
       - name: Setup uv
+        if: needs.changes.outputs.python == 'true'
         uses: astral-sh/setup-uv@v6
         with:
           python-version: ${{ matrix.python }}
 
       - name: Install dependencies (uv sync)
+        if: needs.changes.outputs.python == 'true'
+        working-directory: ./packages/python
         run: uv sync --frozen
 
       - name: Lint (ruff check)
+        if: needs.changes.outputs.python == 'true'
+        working-directory: ./packages/python
         run: uv run ruff check .
 
       - name: Format check (ruff format --check)
+        if: needs.changes.outputs.python == 'true'
+        working-directory: ./packages/python
         run: uv run ruff format --check .
 
       - name: Typecheck (mypy --strict)
+        if: needs.changes.outputs.python == 'true'
+        working-directory: ./packages/python
         run: uv run mypy src
 
       - name: Test (pytest)
+        if: needs.changes.outputs.python == 'true'
+        working-directory: ./packages/python
         run: uv run pytest
 
       - name: Build (uv build)
+        if: needs.changes.outputs.python == 'true'
+        working-directory: ./packages/python
         run: uv build
 
       - name: Smoke test wheel
+        if: needs.changes.outputs.python == 'true'
+        working-directory: ./packages/python
         run: |
           set -euo pipefail
           version=$(uv run python -c "from cao_holidays import __version__; print(__version__)")

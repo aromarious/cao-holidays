@@ -18,10 +18,9 @@ concurrency:
 
 jobs:
   # JS パッケージに関係するファイルが変更されたかを検出する。
-  # 検出結果に応じて build 行をスキップさせることで、required status check の context 名は
-  # 常に発行されつつ、無関係な PR (例: Python のみ変更) では実テストはスキップされる。
   # (workflow レベルの paths filter だと workflow 自体が起動せず、required check が
-  # `expected` のまま埋まらない問題を回避する。)
+  # 不在となって PR が永久 BLOCKED になる問題を回避するため、トリガーは無条件にして
+  # job 内で paths-filter を使う。)
   changes:
     name: Detect JS changes
     runs-on: ubuntu-latest
@@ -43,10 +42,12 @@ jobs:
               - 'pnpm-workspace.yaml'
               - 'package.json'
 
+  # 各 step を個別に `if:` で skip させる。これで matrix が常に展開し、
+  # required status check の context (`Build & test (Node 22)` `Build & test (Node 24)`)
+  # が常に emit される。skip は GitHub 上 success 扱いなので無関係 PR でも check は通る。
   build:
     name: Build & test (Node ${{ matrix.node }})
     needs: changes
-    if: ${{ needs.changes.outputs.js == 'true' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -54,37 +55,50 @@ jobs:
         node: ['22', '24']
 
     steps:
+      - name: Skip notice
+        if: needs.changes.outputs.js != 'true'
+        run: echo "No JS-related changes; all subsequent steps will be skipped."
+
       - uses: actions/checkout@v6
+        if: needs.changes.outputs.js == 'true'
 
       - name: Setup pnpm
+        if: needs.changes.outputs.js == 'true'
         uses: pnpm/action-setup@v6
 
       - name: Setup Node.js
+        if: needs.changes.outputs.js == 'true'
         uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node }}
           cache: pnpm
 
       - name: Install dependencies (workspace root)
+        if: needs.changes.outputs.js == 'true'
         run: pnpm install --frozen-lockfile
 
       - name: Lint (biome)
+        if: needs.changes.outputs.js == 'true'
         working-directory: ./packages/js
         run: pnpm lint
 
       - name: Typecheck (tsc --noEmit)
+        if: needs.changes.outputs.js == 'true'
         working-directory: ./packages/js
         run: pnpm typecheck
 
       - name: Test (vitest)
+        if: needs.changes.outputs.js == 'true'
         working-directory: ./packages/js
         run: pnpm test
 
       - name: Build (tsup)
+        if: needs.changes.outputs.js == 'true'
         working-directory: ./packages/js
         run: pnpm build
 
       - name: Smoke test dist bin
+        if: needs.changes.outputs.js == 'true'
         working-directory: ./packages/js
         run: |
           out=$(node dist/bin/cao-holidays.js --version)
@@ -92,9 +106,11 @@ jobs:
           test -n "$out"
 
       - name: publint
+        if: needs.changes.outputs.js == 'true'
         working-directory: ./packages/js
         run: pnpm exec publint
 
       - name: arethetypeswrong
+        if: needs.changes.outputs.js == 'true'
         working-directory: ./packages/js
         run: pnpm exec attw --pack . --ignore-rules cjs-resolves-to-esm
