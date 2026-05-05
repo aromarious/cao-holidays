@@ -1,0 +1,10 @@
+name: cao-holidays CodeQL config
+
+# scripts/ は npm に publish されない maintainer 専用ツール（現状 sync-fixture.mjs のみ）。
+# fetch して file に書く挙動が本体なので CodeQL の汎用 data-flow ルールに必ず引っかかるが、
+# 公開コードではないため scan 対象から除外する。src/ / bin/ / tests/ は引き続き scan する。
+paths-ignore:
+  - scripts/**
+
+queries:
+  - uses: security-and-quality
