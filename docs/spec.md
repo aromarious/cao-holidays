@@ -323,6 +323,21 @@ ESM。型定義同梱。CJS互換は当面なし（必要になれば `tsup` 等
 
 ---
 
+## セキュリティ
+
+| 項目 | 方針 |
+|---|---|
+| GitHub Code security 機能 | Dependabot alerts / Dependabot security updates / Dependabot malware alerts / Secret Protection / Push protection / Private vulnerability reporting / Grouped security updates / Copilot Autofix をすべて ON |
+| Dependabot 構成 | `.github/dependabot.yml` で npm（週次、devDependencies はグループ化）と github-actions（週次、別ジョブ）の自動更新 PR |
+| CodeQL | `.github/workflows/codeql.yml` で TS/JS を push / PR / 週次 cron で scan。クエリスイートは `security-and-quality`。`.github/codeql/codeql-config.yml` で `scripts/**` を除外（maintainer 専用ツールで data-flow ルールに必ず引っかかるため） |
+| 脆弱性報告 | `SECURITY.md` で [GitHub Private Vulnerability Reporting](https://github.com/aromarious/cao-holidays/security/advisories/new) に誘導。サポート対象（最新 minor のみ）/ scope / SLA を明記 |
+| Action pin 方針 | major tag pin（`@v6` 等）。Dependabot が major bump 時に PR を打つ。SHA pin はオーバーキルとして採用しない（小規模 OSS のため） |
+| Workflow permissions | リポジトリ デフォルトは "Read repository contents and packages permissions"（最小権限）。"Allow GitHub Actions to create and approve pull requests" を ON（changesets/action の Release PR 作成のため） |
+| npm publish 認証 | OIDC (Trusted Publisher: `aromarious/cao-holidays/release.yml`)。`NPM_TOKEN` secret は使わない。`publishConfig.provenance: true` で provenance も自動付与 |
+| Healthcheck issue 起票 | 週次 cron が `data-changed` / `source-mismatch` (CKAN vs 直URL) / `fetch-failed` のいずれかを検知したら `healthcheck` ラベル付き issue を自動起票 |
+
+---
+
 ## ビルド / Lint
 
 | 項目 | 方針 |
@@ -338,11 +353,27 @@ ESM。型定義同梱。CJS互換は当面なし（必要になれば `tsup` 等
 
 | 項目 | 方針 |
 |---|---|
-| GitHubリポジトリ | 当面作らない（ローカル開発）。MVP完成後にpublic化 |
-| README | Install / Quick start (CLI) / Quick start (Library) / Data source & License / Caveats & Caching / Debug |
+| GitHubリポジトリ | [aromarious/cao-holidays](https://github.com/aromarious/cao-holidays) (public)。description / homepage / topics 設定済み |
+| README | Install / Quick start (CLI) / Quick start (Library) / Caveats & Caching / Debug / Data source & License / Support / Reporting vulnerabilities。日本語 (`README.md`) と英語 (`README.en.md`) の2本、互いにリンク。冒頭に badges (npm / CI / Node / License) |
 | LICENSE | MIT（`LICENSE` ファイル） |
-| CONTRIBUTING / CoC / issue・PR テンプレ | 当面作らない |
+| CONTRIBUTING / CoC | `CONTRIBUTING.md`（dev setup / branch / commit / changeset / 言語ポリシー）と `CODE_OF_CONDUCT.md` (Contributor Covenant v2.1) を配置 |
+| Issue / PR テンプレ | `.github/ISSUE_TEMPLATE/{bug_report,feature_request}.yml` + `config.yml`（blank issue 禁止、SECURITY/README への contact link）+ `.github/pull_request_template.md` |
 | データライセンス | 内閣府CSVは日本政府のオープンデータポリシー（現行: [公共データ利用規約 第1.0版](https://www.digital.go.jp/resources/open_data)、2024-07-05〜）に従う。[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 互換。READMEに帰属表記例を掲載:<br>「祝日データ出典: 内閣府『国民の祝日について』(https://www8.cao.go.jp/chosei/shukujitsu/gaiyou.html) を [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) のもとで利用」 |
+
+---
+
+## ガバナンス
+
+| 項目 | 方針 |
+|---|---|
+| ブランチ保護 | GitHub Rulesets で `main` を保護。PR 必須（required approvals: 0、solo maintainer）/ linear history / force push 禁止 / deletion 禁止 / 必須 status check は CI の Build & test (Node 22 / 24) と CodeQL の Analyze (javascript-typescript)。詳細はブランチ戦略セクション参照 |
+| 開発フロー | `feature/*` / `fix/*` / `chore/*` ブランチで作業 → PR → squash or rebase で `main` にマージ |
+| リリースフロー | changesets を `pnpm exec changeset` で添付 → main マージで Release PR 自動作成 → Release PR マージで自動 npm publish (OIDC) |
+| 言語ポリシー | PR / Issue のタイトル・本文は **日本語**。コミットメッセージと `README.en.md` は **英語**。CONTRIBUTING.md / CODE_OF_CONDUCT.md などのコミュニティドキュメントは目的に応じて選択（CONTRIBUTING は日本語、CoC は Contributor Covenant 原文の英語） |
+| コーディング規約 | TypeScript `strict: true` + `noUncheckedIndexedAccess: true`、Biome v2 で format/lint、セミコロン無し（`asNeeded`）、すべての export に日本語 JSDoc |
+| Issue / PR テンプレ | `.github/ISSUE_TEMPLATE/{bug_report,feature_request}.yml` + `config.yml`（blank issue 禁止 + SECURITY/README への contact link）。`.github/pull_request_template.md` で changeset 添付 / breaking change チェックを促す |
+| Code of Conduct | [Contributor Covenant v2.1](./CODE_OF_CONDUCT.md)。enforcement contact は `aromarious@gmail.com` |
+| サポート対象 Node | LTS の現行 2 系統（22 / 24）を CI でテスト |
 
 ---
 
