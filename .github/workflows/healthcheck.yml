@@ -1,0 +1,182 @@
+name: Healthcheck
+
+on:
+  schedule:
+    # 毎週月曜 00:00 UTC = 月曜 09:00 JST
+    - cron: '0 0 * * 1'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write   # state.json を main に commit するため
+  issues: write     # 差分 / 不一致 を issue で起票
+
+concurrency:
+  group: healthcheck
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Probe both sources
+        id: probe
+        env:
+          CKAN_URL: 'https://data.e-gov.go.jp/data/api/action/package_show?id=cao_20190522_0002'
+          DIRECT_URL: 'https://www8.cao.go.jp/chosei/shukujitsu/syukujitsu.csv'
+          UA: 'cao-holidays-healthcheck (+https://github.com/aromarious/cao-holidays)'
+        run: |
+          set -euo pipefail
+          mkdir -p .healthcheck/work
+          ckan_ok=true
+          if ! curl -sfL -A "$UA" "$CKAN_URL" -o .healthcheck/work/ckan.json; then
+            ckan_ok=false
+            echo "ckan_resolved_url=" >> "$GITHUB_OUTPUT"
+            echo "ckan_sha=" >> "$GITHUB_OUTPUT"
+          else
+            csv_url=$(jq -r '.result.resources[0].url // empty' .healthcheck/work/ckan.json)
+            if [ -z "$csv_url" ]; then
+              ckan_ok=false
+              echo "ckan_resolved_url=" >> "$GITHUB_OUTPUT"
+              echo "ckan_sha=" >> "$GITHUB_OUTPUT"
+            elif curl -sfL -A "$UA" "$csv_url" -o .healthcheck/work/ckan.csv; then
+              echo "ckan_resolved_url=$csv_url" >> "$GITHUB_OUTPUT"
+              echo "ckan_sha=$(sha256sum .healthcheck/work/ckan.csv | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+            else
+              ckan_ok=false
+              echo "ckan_resolved_url=$csv_url" >> "$GITHUB_OUTPUT"
+              echo "ckan_sha=" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+          echo "ckan_ok=$ckan_ok" >> "$GITHUB_OUTPUT"
+          direct_ok=true
+          if curl -sfL -A "$UA" "$DIRECT_URL" -o .healthcheck/work/direct.csv; then
+            echo "direct_sha=$(sha256sum .healthcheck/work/direct.csv | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+            echo "direct_bytes=$(wc -c < .healthcheck/work/direct.csv)" >> "$GITHUB_OUTPUT"
+            echo "direct_rows=$(wc -l < .healthcheck/work/direct.csv)" >> "$GITHUB_OUTPUT"
+          else
+            direct_ok=false
+            echo "direct_sha=" >> "$GITHUB_OUTPUT"
+            echo "direct_bytes=" >> "$GITHUB_OUTPUT"
+            echo "direct_rows=" >> "$GITHUB_OUTPUT"
+          fi
+          echo "direct_ok=$direct_ok" >> "$GITHUB_OUTPUT"
+          echo "checked_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
+      - name: Compare with stored state
+        id: compare
+        env:
+          CKAN_OK: ${{ steps.probe.outputs.ckan_ok }}
+          DIRECT_OK: ${{ steps.probe.outputs.direct_ok }}
+          CKAN_SHA: ${{ steps.probe.outputs.ckan_sha }}
+          DIRECT_SHA: ${{ steps.probe.outputs.direct_sha }}
+          DIRECT_BYTES: ${{ steps.probe.outputs.direct_bytes }}
+          DIRECT_ROWS: ${{ steps.probe.outputs.direct_rows }}
+          CHECKED_AT: ${{ steps.probe.outputs.checked_at }}
+        run: |
+          set -euo pipefail
+          state_file=".healthcheck/state.json"
+          mismatch=false
+          if [ "$CKAN_OK" = "true" ] && [ "$DIRECT_OK" = "true" ] && [ "$CKAN_SHA" != "$DIRECT_SHA" ]; then
+            mismatch=true
+          fi
+          fetch_failed=false
+          if [ "$CKAN_OK" != "true" ] || [ "$DIRECT_OK" != "true" ]; then
+            fetch_failed=true
+          fi
+          changed=false
+          prev_sha=""
+          if [ -f "$state_file" ]; then
+            prev_sha=$(jq -r '.direct_sha // empty' "$state_file")
+            if [ -n "$DIRECT_SHA" ] && [ -n "$prev_sha" ] && [ "$prev_sha" != "$DIRECT_SHA" ]; then
+              changed=true
+            fi
+          fi
+          echo "mismatch=$mismatch" >> "$GITHUB_OUTPUT"
+          echo "fetch_failed=$fetch_failed" >> "$GITHUB_OUTPUT"
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+          echo "prev_sha=$prev_sha" >> "$GITHUB_OUTPUT"
+          mkdir -p .healthcheck
+          jq -n \
+            --arg ckan_sha "$CKAN_SHA" \
+            --arg direct_sha "$DIRECT_SHA" \
+            --arg direct_bytes "$DIRECT_BYTES" \
+            --arg direct_rows "$DIRECT_ROWS" \
+            --arg checked_at "$CHECKED_AT" \
+            '{ckan_sha: $ckan_sha, direct_sha: $direct_sha, direct_bytes: ($direct_bytes|tonumber? // null), direct_rows: ($direct_rows|tonumber? // null), checked_at: $checked_at}' \
+            > "$state_file"
+          rm -rf .healthcheck/work
+
+      - name: Open issue (data changed / source mismatch / fetch failed)
+        if: steps.compare.outputs.changed == 'true' || steps.compare.outputs.mismatch == 'true' || steps.compare.outputs.fetch_failed == 'true'
+        uses: actions/github-script@v7
+        env:
+          CKAN_OK: ${{ steps.probe.outputs.ckan_ok }}
+          DIRECT_OK: ${{ steps.probe.outputs.direct_ok }}
+          CKAN_RESOLVED_URL: ${{ steps.probe.outputs.ckan_resolved_url }}
+          CKAN_SHA: ${{ steps.probe.outputs.ckan_sha }}
+          DIRECT_SHA: ${{ steps.probe.outputs.direct_sha }}
+          DIRECT_BYTES: ${{ steps.probe.outputs.direct_bytes }}
+          DIRECT_ROWS: ${{ steps.probe.outputs.direct_rows }}
+          PREV_SHA: ${{ steps.compare.outputs.prev_sha }}
+          CHECKED_AT: ${{ steps.probe.outputs.checked_at }}
+          MISMATCH: ${{ steps.compare.outputs.mismatch }}
+          CHANGED: ${{ steps.compare.outputs.changed }}
+          FETCH_FAILED: ${{ steps.compare.outputs.fetch_failed }}
+        with:
+          script: |
+            const env = process.env;
+            const flags = [];
+            if (env.FETCH_FAILED === 'true') flags.push('fetch-failed');
+            if (env.MISMATCH === 'true') flags.push('source-mismatch');
+            if (env.CHANGED === 'true') flags.push('data-changed');
+
+            const title = `[healthcheck] ${flags.join(' / ')} (${env.CHECKED_AT})`;
+            const body = [
+              `Triggered by weekly cron healthcheck.`,
+              ``,
+              `### Status`,
+              `- ckan reachable: ${env.CKAN_OK}`,
+              `- direct reachable: ${env.DIRECT_OK}`,
+              `- ckan_sha:   \`${env.CKAN_SHA || '(none)'}\``,
+              `- direct_sha: \`${env.DIRECT_SHA || '(none)'}\``,
+              `- previous direct_sha: \`${env.PREV_SHA || '(none, first run)'}\``,
+              `- direct bytes / rows: ${env.DIRECT_BYTES || '?'} / ${env.DIRECT_ROWS || '?'}`,
+              `- ckan resolved URL: ${env.CKAN_RESOLVED_URL || '(unresolved)'}`,
+              ``,
+              `### Flags`,
+              `- fetch-failed: ${env.FETCH_FAILED}`,
+              `- source-mismatch: ${env.MISMATCH}`,
+              `- data-changed: ${env.CHANGED}`,
+              ``,
+              `### Next steps`,
+              `If \`data-changed\` and the project is healthy, run \`pnpm sync-fixture\` and review the diff.`,
+              `If \`source-mismatch\` or \`fetch-failed\`, investigate the upstream sources before closing.`,
+            ].join('\n');
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body,
+              labels: ['healthcheck'],
+            });
+
+      - name: Commit updated state.json
+        env:
+          CHECKED_AT: ${{ steps.probe.outputs.checked_at }}
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .healthcheck/state.json
+          if git diff --staged --quiet; then
+            echo "no state changes to commit"
+          else
+            git commit -m "chore(healthcheck): update state at $CHECKED_AT"
+            git push
+          fi

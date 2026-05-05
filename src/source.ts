@@ -1,5 +1,5 @@
-import createDebug from 'debug'
 import pkg from '../package.json' with { type: 'json' }
+import { createDebug } from './debug.ts'
 import { CaoHolidaysError } from './errors.ts'
 import { decodeSjis } from './parse.ts'
 import type { FetchOptions } from './types.ts'

@@ -2,9 +2,9 @@
 
 > [日本語版](./README.md)
 
-**A thin Node.js library + CLI that fetches Japan's national holidays
-from the Cabinet Office's official CSV.** Always live, no hard-coded
-data, no waiting for package releases.
+A Node.js library + CLI that fetches Japan's *"National Holidays"*
+CSV (published by the Cabinet Office, 内閣府) at runtime and returns it
+as `Holiday[]` / CSV / JSON / ICS.
 
 ```sh
 npx cao-holidays 2026
