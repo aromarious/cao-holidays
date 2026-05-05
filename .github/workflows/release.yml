@@ -24,6 +24,13 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0   # changesets が tag を打つために full history が必要
+          # Use PAT so the Release PR's commits are recognized as user-initiated
+          # and trigger required CI / CodeQL workflows (GITHUB_TOKEN-pushed
+          # commits do not, by GitHub Actions loop-prevention design).
+          # Falls back to GITHUB_TOKEN when RELEASE_TOKEN is not configured
+          # (e.g. forks), at the cost of needing manual empty commits to
+          # trigger required checks on the Release PR.
+          token: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
@@ -54,5 +61,8 @@ jobs:
           commit: 'chore(release): version packages'
           title: 'chore(release): version packages'
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Same PAT is used here so the Release PR (open / update / push) is
+          # authored by the PAT identity, which causes downstream CI / CodeQL
+          # workflows to start without manual intervention.
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
           NPM_CONFIG_PROVENANCE: 'true'
