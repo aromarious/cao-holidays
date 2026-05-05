@@ -6,7 +6,9 @@ settings:
 
 importers:
 
-  .:
+  .: {}
+
+  packages/js:
     devDependencies:
       '@arethetypeswrong/cli':
         specifier: ^0.18.2

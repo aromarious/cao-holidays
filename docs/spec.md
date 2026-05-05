@@ -246,10 +246,14 @@ END:VCALENDAR
 
 ## パッケージ構成
 
-JS パッケージは `packages/js/` 配下で完結し、root の `fixtures/` `scripts/` `docs/` は言語横断の共有資産。
+JS パッケージは `packages/js/` 配下で完結（公開する code は packages/js/）し、root の `fixtures/` `scripts/` `docs/` は言語横断の共有資産。pnpm workspace 化されており、`pnpm-lock.yaml` と `.changeset/` は root に置く（後者は `changesets/action@v1` の cwd バグ回避）。
 
 ```
-cao-holidays/                       # repo root（multi-language monorepo）
+cao-holidays/                       # repo root（multi-language monorepo + pnpm workspace）
+├── package.json                    # workspace root metadata（private、deps なし、name = cao-holidays-monorepo）
+├── pnpm-workspace.yaml             # packages: ['packages/js']
+├── pnpm-lock.yaml                  # workspace lockfile
+├── .changeset/                     # Changesets 設定 + 未消費 changeset (root に置くのは action 互換性のため)
 ├── packages/
 │   └── js/                         # JS パッケージ本体 (npm: cao-holidays)
 │       ├── src/
@@ -263,13 +267,11 @@ cao-holidays/                       # repo root（multi-language monorepo）
 │       │   └── cao-holidays.ts     # CLI エントリ (shebang 必須、cli.ts の薄いラッパー)
 │       ├── tests/                  # テストは tests/ に集約（src 隣接にはしない）
 │       │   └── *.test.ts           # 入力 fixture は ../../../fixtures/ から相対参照
-│       ├── .changeset/             # Changesets 設定 + 未消費 changeset
-│       ├── package.json
+│       ├── package.json            # 公開対象 (npm: cao-holidays)
 │       ├── tsconfig.json
-│       ├── biome.json              # vcs.root: ".." で repo root の .gitignore を利用
+│       ├── biome.json              # vcs.root: "../.." で repo root の .gitignore を利用
 │       ├── tsup.config.ts
 │       ├── vitest.config.ts
-│       ├── pnpm-lock.yaml
 │       ├── CHANGELOG.md
 │       ├── LICENSE                 # root の LICENSE のコピー（npm tarball 同梱用）
 │       ├── README.md / README.en.md
@@ -358,7 +360,7 @@ ESM。型定義同梱。CJS互換は当面なし（必要になれば `tsup` 等
 | OS マトリクス | Ubuntu のみ |
 | PR チェック | workflow `ci-js.yml`（`paths` フィルタで `packages/js/**`・`fixtures/**`・`scripts/sync-fixture.mjs`・`scripts/generate-fixtures.mjs` の変更時のみ起動）。中身は `biome check .` / `vitest run` / `tsc --noEmit` / `tsup` build / dist bin smoke test (`node dist/bin/cao-holidays.js --version`) / `publint` + `@arethetypeswrong/cli`、`working-directory: ./packages/js` で実行 |
 | 定期ヘルスチェック | 週次cronで (a) CKAN 経由 と (b) 直URL `https://www8.cao.go.jp/chosei/shukujitsu/syukujitsu.csv` の両方を実取得。各CSVのSHA-256ハッシュを `.healthcheck/state.json` に保存し、前回と差分があれば issue 自動起票（更新日 / 行数 / フォーマット変化、(a)(b) の不一致を検知）。実装は curl + jq ベースで言語非依存 |
-| リリース管理 | [changesets](https://github.com/changesets/changesets)。`packages/js/.changeset/*.md` に changeset を追加 → main マージで Release PR 自動作成 → Release PR マージで自動 publish。workflow `release.yml` は `working-directory: ./packages/js` + `changesets/action` の `cwd: packages/js` で動く |
+| リリース管理 | [changesets](https://github.com/changesets/changesets)。`.changeset/*.md` (repo root) に changeset を追加 → main マージで Release PR 自動作成 → Release PR マージで自動 publish。`changesets/action@v1` の `cwd:` パラメータが `readChangesetState` に伝わらないバグ（fix は main 未リリース）回避のため、`.changeset/` は root に置き、`pnpm-workspace.yaml` で packages/js を workspace member として宣言する。workflow `release.yml` の version/publish スクリプトは `pnpm --dir packages/js exec changeset (version|publish)` |
 | npm 認証 | OIDC (npm Trusted Publisher: `aromarious/cao-holidays/release.yml`)。`NPM_TOKEN` は使わない。multi-language 化で `release-js.yml` に rename する場合は npm Trusted Publisher の workflow filename 設定も同期更新が必要 |
 
 ---
