@@ -32,9 +32,9 @@ test: test-js
 typecheck: typecheck-js
 build: build-js
 
-# JS
+# JS (pnpm workspace、root から install すると packages/js の deps も入る)
 install-js:
-	cd packages/js && pnpm install
+	pnpm install
 
 lint-js:
 	cd packages/js && pnpm lint

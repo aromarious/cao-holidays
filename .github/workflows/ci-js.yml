@@ -25,10 +25,6 @@ concurrency:
   group: ci-js-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-defaults:
-  run:
-    working-directory: ./packages/js
-
 jobs:
   build:
     name: Build & test (Node ${{ matrix.node }})
@@ -43,39 +39,43 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
-        with:
-          package_json_file: packages/js/package.json
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node }}
           cache: pnpm
-          cache-dependency-path: packages/js/pnpm-lock.yaml
 
-      - name: Install dependencies
+      - name: Install dependencies (workspace root)
         run: pnpm install --frozen-lockfile
 
       - name: Lint (biome)
+        working-directory: ./packages/js
         run: pnpm lint
 
       - name: Typecheck (tsc --noEmit)
+        working-directory: ./packages/js
         run: pnpm typecheck
 
       - name: Test (vitest)
+        working-directory: ./packages/js
         run: pnpm test
 
       - name: Build (tsup)
+        working-directory: ./packages/js
         run: pnpm build
 
       - name: Smoke test dist bin
+        working-directory: ./packages/js
         run: |
           out=$(node dist/bin/cao-holidays.js --version)
           echo "version output: $out"
           test -n "$out"
 
       - name: publint
+        working-directory: ./packages/js
         run: pnpm exec publint
 
       - name: arethetypeswrong
+        working-directory: ./packages/js
         run: pnpm exec attw --pack . --ignore-rules cjs-resolves-to-esm

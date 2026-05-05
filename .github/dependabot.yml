@@ -1,8 +1,8 @@
 version: 2
 updates:
-  # npm ランタイム / dev 依存の週次更新
+  # npm ランタイム / dev 依存の週次更新（pnpm workspace、lockfile は root）
   - package-ecosystem: npm
-    directory: /packages/js
+    directory: /
     schedule:
       interval: weekly
       day: monday

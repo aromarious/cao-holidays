@@ -1,0 +1,10 @@
+{
+  "name": "cao-holidays-monorepo",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Multi-language monorepo root for cao-holidays. Published packages live under packages/<lang>/.",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=22"
+  }
+}

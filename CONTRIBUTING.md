@@ -8,15 +8,15 @@
 
 - **Node.js**: 22 もしくは 24（LTS 系）。`.nvmrc` に 24 を pin しているので `nvm use` / `mise install` で揃います
 - **pnpm**: `package.json` の `packageManager` フィールドを尊重するため、`corepack enable` 経由か mise などで自動取得が楽です
-- 初回セットアップ:
+- 初回セットアップ（repo root が pnpm workspace、`pnpm-lock.yaml` も root に置かれる）:
 
   ```sh
+  pnpm install                # repo root で全 workspace の deps を install
   cd packages/js
-  pnpm install
-  pnpm test          # vitest run
-  pnpm typecheck     # tsc --noEmit
-  pnpm lint          # biome check .
-  pnpm build         # tsup
+  pnpm test                   # vitest run
+  pnpm typecheck              # tsc --noEmit
+  pnpm lint                   # biome check .
+  pnpm build                  # tsup
   ```
 
   または repo root から `make install && make test` 等の横断ターゲットでも可（[`Makefile`](./Makefile) 参照）。
@@ -40,9 +40,9 @@
 - JS パッケージへの変更には [changeset](https://github.com/changesets/changesets) を1つ追加してください:
 
   ```sh
-  cd packages/js
-  pnpm exec changeset
-  # patch / minor / major と説明を入力 → packages/js/.changeset/<random>.md がコミット対象に
+  pnpm --dir packages/js exec changeset
+  # または cd packages/js && pnpm exec changeset
+  # patch / minor / major と説明を入力 → .changeset/<random>.md (repo root) がコミット対象に
   ```
 
   バグ修正やドキュメント改善の場合は patch、後方互換のある機能追加は minor、破壊的変更は major（`0.x` のうちは minor で破壊的変更も含めて構いません）。
