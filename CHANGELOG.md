@@ -1,5 +1,11 @@
 # cao-holidays
 
+## 0.2.0
+
+### Minor Changes
+
+- 4906d56: Add CLI retry support: `--retry <n>` (default 2, set 0 to disable) and `--retry-delay <ms>` (default 500). Retries on HTTP 5xx / 408 / 429 / network failures with exponential backoff + ±20% jitter, honoring `Retry-After`. `--timeout` is now a per-attempt timeout when combined with retry. Library API is unchanged.
+
 ## 0.1.0
 
 ### Minor Changes
