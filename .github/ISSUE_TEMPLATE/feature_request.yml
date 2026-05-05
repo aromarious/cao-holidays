@@ -1,0 +1,38 @@
+name: 機能要望 (Feature request)
+description: 新機能や改善のアイデアを提案するときに使ってください
+title: '[feat] '
+labels: [enhancement, triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        提案ありがとうございます。`cao-holidays` は意図的に薄いラッパー設計です。
+        spec.md の「[非スコープ](https://github.com/aromarious/cao-holidays/blob/main/docs/spec.md#非スコープ明示的にやらないこと)」に該当するアイデアもあるので、合わせて確認していただけると話が早いです。
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: 解決したい課題
+      description: なぜこの機能が欲しいか、現状どう困っているかを教えてください
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 提案する解決策
+      description: API / CLI フラグ / オプションのイメージなど
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 検討した代替案
+      description: 自前で実装できる方法 / 他ライブラリで解決できる方法 など
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: その他補足
+      description: ユースケース / 参考実装 / 関連 issue など
