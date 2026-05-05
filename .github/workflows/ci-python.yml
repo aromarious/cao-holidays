@@ -1,0 +1,69 @@
+name: CI (Python)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'packages/python/**'
+      - 'fixtures/**'
+      - '.github/workflows/ci-python.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'packages/python/**'
+      - 'fixtures/**'
+      - '.github/workflows/ci-python.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-python-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    working-directory: ./packages/python
+
+jobs:
+  build:
+    name: Build & test (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.11', '3.12', '3.13']
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install dependencies (uv sync)
+        run: uv sync --frozen
+
+      - name: Lint (ruff check)
+        run: uv run ruff check .
+
+      - name: Format check (ruff format --check)
+        run: uv run ruff format --check .
+
+      - name: Typecheck (mypy --strict)
+        run: uv run mypy src
+
+      - name: Test (pytest)
+        run: uv run pytest
+
+      - name: Build (uv build)
+        run: uv build
+
+      - name: Smoke test wheel
+        run: |
+          set -euo pipefail
+          version=$(uv run python -c "from cao_holidays import __version__; print(__version__)")
+          echo "version=$version"
+          test -n "$version"
+          ls dist/

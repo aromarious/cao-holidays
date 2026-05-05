@@ -129,8 +129,23 @@ dist
 # TernJS port file
 .tern-port
 
+# VSCode user-specific settings (only commit extensions.json)
+.vscode/*
+!.vscode/extensions.json
+
 # Stores VSCode versions used for testing VSCode extensions
 .vscode-test
+
+# Python (uv / venv / build)
+.venv/
+__pycache__/
+*.pyc
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# pre-commit
+.pre-commit-cache/
 
 # pnpm
 .pnpm-store
