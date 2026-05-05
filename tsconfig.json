@@ -25,7 +25,8 @@
     "declarationMap": true,
     "sourceMap": true,
 
-    "noEmit": true
+    "noEmit": true,
+    "ignoreDeprecations": "6.0"
   },
   "include": ["src", "bin", "tests", "scripts", "*.config.ts", "*.config.mts"],
   "exclude": ["dist", "node_modules"]
