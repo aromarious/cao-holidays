@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest'
 import { CaoHolidaysError } from '../src/errors.ts'
 import { decodeSjis, parseCsv } from '../src/parse.ts'
 
-const fixturePath = fileURLToPath(new URL('./fixtures/syukujitsu.csv', import.meta.url))
+const fixturePath = fileURLToPath(new URL('../../../fixtures/syukujitsu.csv', import.meta.url))
 
 describe('decodeSjis', () => {
   it('SJIS バイト列を UTF-8 文字列にデコードする', () => {

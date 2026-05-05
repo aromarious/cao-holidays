@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * tests/fixtures/syukujitsu.csv を内閣府の最新 CSV に同期する手動スクリプト。
+ * fixtures/syukujitsu.csv を内閣府の最新 CSV に同期する手動スクリプト。
  *
  * - CKAN package_show API で URL を解決 → CSV を fetch
  * - 既存 fixture とバイナリ等価なら何もしない（exit 0、"no changes" 出力）
@@ -19,10 +19,10 @@ import { fileURLToPath } from 'node:url'
 
 const CKAN_URL = 'https://data.e-gov.go.jp/data/api/action/package_show?id=cao_20190522_0002'
 
-const FIXTURE_PATH = fileURLToPath(new URL('../tests/fixtures/syukujitsu.csv', import.meta.url))
+const FIXTURE_PATH = fileURLToPath(new URL('../fixtures/syukujitsu.csv', import.meta.url))
 
 const PKG = JSON.parse(
-  await readFile(fileURLToPath(new URL('../package.json', import.meta.url)), 'utf8'),
+  await readFile(fileURLToPath(new URL('../packages/js/package.json', import.meta.url)), 'utf8'),
 )
 const USER_AGENT = `cao-holidays/${PKG.version} (sync-fixture)`
 

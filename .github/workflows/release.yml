@@ -34,6 +34,8 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
+        with:
+          package_json_file: packages/js/package.json
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -41,16 +43,23 @@ jobs:
           node-version: '24'   # npm 11+ for trusted publishing
           registry-url: 'https://registry.npmjs.org'
           cache: pnpm
+          cache-dependency-path: packages/js/pnpm-lock.yaml
 
       - name: Install dependencies
+        working-directory: ./packages/js
         run: pnpm install --frozen-lockfile
 
       - name: Build (sanity check before publish)
+        working-directory: ./packages/js
         run: pnpm build
 
+      # NOTE: Trusted Publisher は workflow file 名 `release.yml` に紐付いて npm 側に登録済み。
+      # multi-language 化で `release-js.yml` に rename する場合、npm Trusted Publisher の
+      # 設定 (Workflow filename) も一緒に更新する必要がある。Phase 13 ではここでは rename しない。
       - name: Create Release PR or publish to npm
         uses: changesets/action@v1
         with:
+          cwd: packages/js
           # `changeset publish` queries npm registry per package and skips
           # already-published versions, avoiding "version already exists"
           # noise on every push to main when there's no pending changeset.

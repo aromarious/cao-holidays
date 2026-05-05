@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest'
 import { CaoHolidaysError } from '../src/errors.ts'
 import { CKAN_URL, fetchCsvText, resolveCsvUrl } from '../src/source.ts'
 
-const fixturePath = fileURLToPath(new URL('./fixtures/syukujitsu.csv', import.meta.url))
+const fixturePath = fileURLToPath(new URL('../../../fixtures/syukujitsu.csv', import.meta.url))
 
 const REAL_CSV_URL = 'https://www8.cao.go.jp/chosei/shukujitsu/syukujitsu.csv'
 

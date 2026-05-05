@@ -36,8 +36,8 @@ us if you have constraints.
 
 In scope:
 
-- Code in this repository (`src/`, `bin/`, `scripts/`, `.github/workflows/`)
-- Published `cao-holidays` package on npm
+- Code in this repository (`packages/*/`, `scripts/`, `.github/workflows/`)
+- Published packages — currently `cao-holidays` on npm; future packages on PyPI / RubyGems / etc.
 - Build and release pipeline (CI / Healthcheck / Release workflows)
 
 Out of scope:

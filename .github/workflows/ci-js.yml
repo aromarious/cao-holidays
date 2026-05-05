@@ -1,17 +1,33 @@
-name: CI
+name: CI (JS)
 
 on:
   pull_request:
     branches: [main]
+    paths:
+      - 'packages/js/**'
+      - 'fixtures/**'
+      - 'scripts/sync-fixture.mjs'
+      - 'scripts/generate-fixtures.mjs'
+      - '.github/workflows/ci-js.yml'
   push:
     branches: [main]
+    paths:
+      - 'packages/js/**'
+      - 'fixtures/**'
+      - 'scripts/sync-fixture.mjs'
+      - 'scripts/generate-fixtures.mjs'
+      - '.github/workflows/ci-js.yml'
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-js-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    working-directory: ./packages/js
 
 jobs:
   build:
@@ -27,12 +43,15 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
+        with:
+          package_json_file: packages/js/package.json
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node }}
           cache: pnpm
+          cache-dependency-path: packages/js/pnpm-lock.yaml
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
