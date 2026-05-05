@@ -11,7 +11,7 @@ const debug = createDebug('cao-holidays')
 export const CKAN_URL = 'https://data.e-gov.go.jp/data/api/action/package_show?id=cao_20190522_0002'
 
 /** 内閣府サーバへのリクエストに付与する User-Agent ヘッダ値。 */
-const USER_AGENT = `cao-holidays/${pkg.version}`
+const USER_AGENT = `cao-holidays/${pkg.version} (+https://github.com/aromarious/cao-holidays)`
 
 /**
  * `FetchOptions` から fetch 実装と共通の `RequestInit` を組み立てる。

@@ -15,6 +15,14 @@
   ],
   "author": "aromarious <aromarious@gmail.com>",
   "license": "MIT",
+  "homepage": "https://github.com/aromarious/cao-holidays#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aromarious/cao-holidays.git"
+  },
+  "bugs": {
+    "url": "https://github.com/aromarious/cao-holidays/issues"
+  },
   "type": "module",
   "engines": {
     "node": ">=22"
@@ -44,6 +52,10 @@
     "format": "biome check . --write",
     "sync-fixture": "node scripts/sync-fixture.mjs",
     "prepublishOnly": "pnpm build"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   },
   "packageManager": "pnpm@10.33.0",
   "devDependencies": {
