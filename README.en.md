@@ -2,6 +2,11 @@
 
 > [日本語版](./README.md)
 
+[![npm](https://img.shields.io/npm/v/cao-holidays?style=flat-square)](https://www.npmjs.com/package/cao-holidays)
+[![CI](https://img.shields.io/github/actions/workflow/status/aromarious/cao-holidays/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/aromarious/cao-holidays/actions/workflows/ci.yml)
+[![Node](https://img.shields.io/node/v/cao-holidays?style=flat-square)](https://nodejs.org/)
+[![License: MIT](https://img.shields.io/npm/l/cao-holidays?style=flat-square)](./LICENSE)
+
 A Node.js library + CLI that fetches Japan's *"National Holidays"*
 CSV (published by the Cabinet Office, 内閣府) at runtime and returns it
 as `Holiday[]` / CSV / JSON / ICS.
@@ -243,3 +248,16 @@ DEBUG=cao-holidays npx cao-holidays 2026
   *"National Holidays" (https://www8.cao.go.jp/chosei/shukujitsu/gaiyou.html),*
   *used under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)."*
 - **Library code**: MIT licensed. See [LICENSE](./LICENSE).
+
+## Support / versioning
+
+- **Supported Node.js**: the two current LTS lines (22 / 24), exercised on CI.
+- **SemVer**: while we're on `0.x`, minor bumps may include breaking
+  changes. Once `1.0.0` ships we'll follow SemVer strictly.
+- **Release history**: see [CHANGELOG.md](./CHANGELOG.md).
+
+## Reporting vulnerabilities
+
+See [SECURITY.md](./SECURITY.md). Please use [GitHub Private Vulnerability
+Reporting](https://github.com/aromarious/cao-holidays/security/advisories/new)
+rather than opening a public issue.

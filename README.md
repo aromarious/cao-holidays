@@ -2,6 +2,11 @@
 
 > [English version](./README.en.md)
 
+[![npm](https://img.shields.io/npm/v/cao-holidays?style=flat-square)](https://www.npmjs.com/package/cao-holidays)
+[![CI](https://img.shields.io/github/actions/workflow/status/aromarious/cao-holidays/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/aromarious/cao-holidays/actions/workflows/ci.yml)
+[![Node](https://img.shields.io/node/v/cao-holidays?style=flat-square)](https://nodejs.org/)
+[![License: MIT](https://img.shields.io/npm/l/cao-holidays?style=flat-square)](./LICENSE)
+
 内閣府が公開している『国民の祝日』CSV を実行時に fetch して、`Holiday[]` / CSV / JSON / ICS として返す Node.js ライブラリ + CLI です。
 
 ```sh
@@ -211,3 +216,13 @@ DEBUG=cao-holidays npx cao-holidays 2026
 - **データ**: 内閣府『[国民の祝日について](https://www8.cao.go.jp/chosei/shukujitsu/gaiyou.html)』。日本政府のオープンデータポリシー（現行: [公共データ利用規約 第1.0版](https://www.digital.go.jp/resources/open_data)、2024-07-05〜）に従い、[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) と互換です。
 - **帰属表記例**: 「祝日データ出典: 内閣府『国民の祝日について』(https://www8.cao.go.jp/chosei/shukujitsu/gaiyou.html) を [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) のもとで利用」
 - **ライブラリ自体**: MIT ライセンス。詳細は [LICENSE](./LICENSE) を参照してください。
+
+## サポート / バージョン方針
+
+- **対応 Node.js**: LTS の現行 2 系統（22 / 24）を CI で検証しています
+- **SemVer**: 0.x のうちは minor bump で破壊的変更を含むことがあります。1.0.0 以降は厳密に SemVer を守ります
+- **リリース履歴**: [CHANGELOG.md](./CHANGELOG.md) を参照してください
+
+## 脆弱性報告
+
+[SECURITY.md](./SECURITY.md) を参照してください。public な issue ではなく [GitHub Private Vulnerability Reporting](https://github.com/aromarious/cao-holidays/security/advisories/new) 経由でお願いします。
