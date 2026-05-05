@@ -2,11 +2,9 @@
 
 > 🗂 これは [`cao-holidays` multi-language monorepo](https://github.com/aromarious/cao-holidays) の **Python パッケージ**です。他言語の実装計画と全体像は [repo root の README](https://github.com/aromarious/cao-holidays#readme) を参照してください。
 
-> ⚠️ **0.0.0 (Phase 2 雛形): API の中身はまだ実装されていません**。`fetch_*` を呼ぶと `NotImplementedError` を投げます。実装は次の minor リリース (`0.1.0`) で入る予定です。
-
 内閣府が公開している『国民の祝日』CSV を実行時に fetch して、`Holiday` のリストとして返す Python ライブラリ。
 
-JavaScript / TypeScript 版 (`cao-holidays` on npm) と**同じ振る舞い**を提供することを目標にしており、CSV / JSON / ICS の出力はバイト一致で検証されます。Python 版は **library only**（CLI は提供しません）。
+JavaScript / TypeScript 版 (`cao-holidays` on npm) と**同じ振る舞い**を提供しており、CSV / JSON / ICS の出力はバイト一致で検証されています（[`tests/test_fixture_parity.py`](https://github.com/aromarious/cao-holidays/blob/main/packages/python/tests/test_fixture_parity.py) 参照）。Python 版は **library only**（CLI は提供しません）。
 
 ## インストール
 
@@ -17,7 +15,7 @@ pip install cao-holidays
 
 サポート Python: **3.11 / 3.12 / 3.13**
 
-## クイックスタート (実装後 / 0.1.0+)
+## クイックスタート
 
 ```python
 from cao_holidays import (
