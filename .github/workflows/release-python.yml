@@ -43,7 +43,7 @@ jobs:
           # tag は `python-vX.Y.Z` 形式。package version (pyproject.toml dynamic = src/cao_holidays/__init__.py)
           # と一致していなければ publish を中断する
           tag_version="${TAG_REF#refs/tags/python-v}"
-          pkg_version=$(uv run --no-sync python -c "from cao_holidays import __version__; print(__version__)")
+          pkg_version=$(grep -E '^__version__' src/cao_holidays/__init__.py | sed -E 's/.*"([^"]+)".*/\1/')
           echo "tag_version=$tag_version"
           echo "pkg_version=$pkg_version"
           test "$tag_version" = "$pkg_version"
