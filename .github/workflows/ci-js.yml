@@ -3,31 +3,50 @@ name: CI (JS)
 on:
   pull_request:
     branches: [main]
-    paths:
-      - 'packages/js/**'
-      - 'fixtures/**'
-      - 'scripts/sync-fixture.mjs'
-      - 'scripts/generate-fixtures.mjs'
-      - '.github/workflows/ci-js.yml'
   push:
     branches: [main]
-    paths:
-      - 'packages/js/**'
-      - 'fixtures/**'
-      - 'scripts/sync-fixture.mjs'
-      - 'scripts/generate-fixtures.mjs'
-      - '.github/workflows/ci-js.yml'
 
+# - contents: read     : checkout
+# - pull-requests: read: dorny/paths-filter が PR 時に変更ファイルを取得
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
   group: ci-js-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # JS パッケージに関係するファイルが変更されたかを検出する。
+  # 検出結果に応じて build 行をスキップさせることで、required status check の context 名は
+  # 常に発行されつつ、無関係な PR (例: Python のみ変更) では実テストはスキップされる。
+  # (workflow レベルの paths filter だと workflow 自体が起動せず、required check が
+  # `expected` のまま埋まらない問題を回避する。)
+  changes:
+    name: Detect JS changes
+    runs-on: ubuntu-latest
+    outputs:
+      js: ${{ steps.filter.outputs.js }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            js:
+              - 'packages/js/**'
+              - 'fixtures/**'
+              - 'scripts/sync-fixture.mjs'
+              - 'scripts/generate-fixtures.mjs'
+              - '.github/workflows/ci-js.yml'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'package.json'
+
   build:
     name: Build & test (Node ${{ matrix.node }})
+    needs: changes
+    if: ${{ needs.changes.outputs.js == 'true' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
