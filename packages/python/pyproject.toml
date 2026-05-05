@@ -63,7 +63,10 @@ dev = [
 ]
 
 [tool.ruff]
-line-length = 100
+# 日本語 docstring は 1 文字を 1 列としてカウントされるため、英語コメントだけの 100 列より
+# 余裕を持たせる。120 でも JS 側 (biome の lineWidth: 100) より緩いが、実コードの行は
+# 大半 80〜90 column に収まり、長くなるのは docstring の説明文のみ。
+line-length = 120
 target-version = "py311"
 src = ["src", "tests"]
 
