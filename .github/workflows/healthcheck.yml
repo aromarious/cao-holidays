@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.0
         with:
           fetch-depth: 1
 
@@ -113,7 +113,7 @@ jobs:
 
       - name: Open issue (data changed / source mismatch / fetch failed)
         if: steps.compare.outputs.changed == 'true' || steps.compare.outputs.mismatch == 'true' || steps.compare.outputs.fetch_failed == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b  # v7.0.1
         env:
           CKAN_OK: ${{ steps.probe.outputs.ckan_ok }}
           DIRECT_OK: ${{ steps.probe.outputs.direct_ok }}

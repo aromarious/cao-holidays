@@ -1,0 +1,30 @@
+version: 2
+updates:
+  # npm ランタイム / dev 依存の週次更新
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:00'
+      timezone: Asia/Tokyo
+    open-pull-requests-limit: 10
+    groups:
+      # devDependencies はまとめて1 PR にする（読みやすさ優先）
+      dev-dependencies:
+        dependency-type: development
+    labels:
+      - dependencies
+
+  # GitHub Actions の SHA pin を週次で最新タグ → SHA に追従
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:00'
+      timezone: Asia/Tokyo
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - github-actions
