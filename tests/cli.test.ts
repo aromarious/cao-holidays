@@ -178,3 +178,68 @@ describe('cli: fetch 失敗 -> exit 2', () => {
     expect(r.stderr).not.toBe('')
   })
 })
+
+describe('cli: --retry / --retry-delay', () => {
+  it('--retry が非整数 -> exit 1', async () => {
+    const r = await run(['2026', '--retry', 'abc'])
+    expect(r.code).toBe(1)
+    expect(r.stderr).toMatch(/--retry/i)
+  })
+
+  it('--retry が負数 -> exit 1', async () => {
+    const r = await run(['2026', '--retry', '-1'])
+    expect(r.code).toBe(1)
+    expect(r.stderr).toMatch(/--retry/i)
+  })
+
+  it('--retry-delay が非整数 -> exit 1', async () => {
+    const r = await run(['2026', '--retry-delay', 'abc'])
+    expect(r.code).toBe(1)
+    expect(r.stderr).toMatch(/--retry-delay/i)
+  })
+
+  it('--retry-delay が負数 -> exit 1', async () => {
+    const r = await run(['2026', '--retry-delay', '-1'])
+    expect(r.code).toBe(1)
+    expect(r.stderr).toMatch(/--retry-delay/i)
+  })
+
+  it('一時的な 5xx をリトライして成功し stderr に retry ログを出す', async () => {
+    const csvBuf = await readFile(fixturePath)
+    let ckanCalls = 0
+    const fetch: typeof globalThis.fetch = async (input) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+      if (url === CKAN_URL) {
+        ckanCalls++
+        if (ckanCalls === 1) return new Response('boom', { status: 503 })
+        return new Response(JSON.stringify(ckanResponseJson))
+      }
+      if (url === CSV_URL) return new Response(csvBuf)
+      throw new Error(`unexpected url: ${url}`)
+    }
+    const r = await run(['2026', '--retry', '2', '--retry-delay', '1'], { fetch })
+    expect(r.code).toBe(0)
+    expect(r.stdout).toContain('2026-01-01,元日')
+    expect(r.stderr).toMatch(/retry 1\/2 after \d+ms: HTTP 503/)
+    expect(ckanCalls).toBe(2)
+  })
+
+  it('--retry 0 ならリトライせず exit 2、stderr に retry ログは出ない', async () => {
+    const fetch: typeof globalThis.fetch = async () => new Response('boom', { status: 503 })
+    const r = await run(['2026', '--retry', '0'], { fetch })
+    expect(r.code).toBe(2)
+    expect(r.stderr).not.toMatch(/retry \d+\//)
+  })
+
+  it('リトライ非対象の 4xx は --retry 指定があっても 1 回で exit 2', async () => {
+    let calls = 0
+    const fetch: typeof globalThis.fetch = async () => {
+      calls++
+      return new Response('not found', { status: 404 })
+    }
+    const r = await run(['2026', '--retry', '3', '--retry-delay', '1'], { fetch })
+    expect(r.code).toBe(2)
+    expect(calls).toBe(1)
+    expect(r.stderr).not.toMatch(/retry \d+\//)
+  })
+})

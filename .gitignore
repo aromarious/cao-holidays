@@ -1,6 +1,7 @@
 CLAUDE.local.md
 tmp
 docs/research.md
+.claude/scheduled_tasks.lock
 
 # ===----- Node.js .gitignore -----===
 

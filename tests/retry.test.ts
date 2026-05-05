@@ -111,8 +111,7 @@ describe('makeRetryingFetch', () => {
     let i = 0
     const calls: { url: string }[] = []
     const fetch: typeof globalThis.fetch = async (input) => {
-      const url =
-        typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
       calls.push({ url })
       const slot = failures[i++]
       if (slot === undefined) return success.clone()

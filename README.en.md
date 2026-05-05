@@ -118,8 +118,12 @@ npx cao-holidays --all
 npx cao-holidays 2026 --format json
 npx cao-holidays 2026 --format ics > 2026.ics
 
-# Fetch timeout (default 30000ms) — see Caveats: Timeout
+# Per-attempt fetch timeout (default 30000ms) — see Caveats: Timeout
 npx cao-holidays 2026 --timeout 5000
+
+# Retry on transient failures (5xx / 408 / 429 / network). Default 2 retries, 500ms base delay
+npx cao-holidays 2026 --retry 3 --retry-delay 1000
+npx cao-holidays 2026 --retry 0          # disable retry
 ```
 
 ### Exit codes
@@ -220,9 +224,22 @@ function fetchHolidaysBetween(
     `AbortSignal.timeout(ms)` (or your own `AbortController`'s signal)
     in `FetchOptions.signal` if you want one — see *Quick start
     (library)* above.
-  - **CLI**: `--timeout <ms>` is always on (default 30000ms). The CLI
-    creates an `AbortSignal.timeout` internally and forwards it to
-    fetch, so even without passing the flag the default applies.
+  - **CLI**: `--timeout <ms>` (default 30000ms) is a **per-attempt
+    timeout**. When combined with `--retry`, a fresh
+    `AbortSignal.timeout` is created for each attempt.
+- **Retry (CLI only)**:
+  - `--retry <n>` (default 2, `0` disables) and `--retry-delay <ms>`
+    (default 500, base for exponential backoff). Backoff is exponential
+    with ±20% jitter; `Retry-After` headers take precedence when
+    present.
+  - Retried: HTTP 5xx / 408 / 429 / network failures (`TypeError`) /
+    `AbortError` / `TimeoutError`. Other 4xx and `PARSE_FAILED` /
+    `INVALID_INPUT` / `OUT_OF_RANGE` are **not** retried.
+  - The library API does not retry on its own. Wrap `FetchOptions.fetch`
+    if you want retries from library callers.
+  - **Be considerate to the upstream server.** The data is served by
+    a public Cabinet Office host. Don't push `--retry` higher to mask
+    persistent outages — wait for upstream instead.
 
 ## Debug logging
 

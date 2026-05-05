@@ -105,8 +105,12 @@ npx cao-holidays --all
 npx cao-holidays 2026 --format json
 npx cao-holidays 2026 --format ics > 2026.ics
 
-# fetch タイムアウト（デフォルト 30000ms） — Caveats: タイムアウト 参照
+# fetch タイムアウト（per-attempt、デフォルト 30000ms） — Caveats: タイムアウト 参照
 npx cao-holidays 2026 --timeout 5000
+
+# リトライ（5xx / 408 / 429 / ネットワーク失敗のみ。デフォルト 2 回、初回遅延 500ms）
+npx cao-holidays 2026 --retry 3 --retry-delay 1000
+npx cao-holidays 2026 --retry 0          # リトライ無効化
 ```
 
 ### 終了コード
@@ -197,7 +201,12 @@ function fetchHolidaysBetween(
 - **ブラウザ利用**: 内閣府サーバが CORS ヘッダを返さないため、ブラウザ直接実行は不可です。`FetchOptions.fetch` で自前のプロキシエンドポイントに向けてください。
 - **タイムアウト**:
   - **ライブラリ**: 自動タイムアウトはしません。必要なら `FetchOptions.signal` に `AbortSignal.timeout(ms)` を渡してください（後述の Quick start (ライブラリ) 参照）。
-  - **CLI**: `--timeout <ms>`（既定 30000ms）が常に有効です。CLI が内部で `AbortSignal.timeout` を作って fetch に渡します。フラグを指定しなければ既定値が使われます。
+  - **CLI**: `--timeout <ms>`（既定 30000ms）は **per-attempt timeout** です。`--retry` を併用した場合、各試行ごとに新しい `AbortSignal.timeout` が作られます。フラグを指定しなければ既定値が使われます。
+- **リトライ (CLI のみ)**:
+  - `--retry <n>`（既定 2、`0` で無効化）と `--retry-delay <ms>`（既定 500、初回バックオフ）。指数バックオフ + ±20% ジッタ。`Retry-After` ヘッダがあれば優先します。
+  - 対象: HTTP 5xx / 408 / 429 / ネットワーク失敗 (`TypeError`) / `AbortError` / `TimeoutError`。それ以外の 4xx と `PARSE_FAILED` / `INVALID_INPUT` / `OUT_OF_RANGE` は **再試行しません**。
+  - ライブラリ API は現状リトライ機構を持ちません。必要なら `FetchOptions.fetch` に自前のリトライ実装を被せてください。
+  - **政府サーバへの配慮**: 公開データの一次配信元は内閣府の公的サーバです。`--retry` を増やしても解決しない継続障害には設定値を上げず、上流の停止を疑ってしばらく待つようにしてください。
 
 ## デバッグログ
 
